@@ -4,73 +4,303 @@ from pypdf import PdfReader
 from gtts import gTTS
 import io
 import base64
+import csv
+import os
+import re
+from datetime import datetime
+from html import escape
 
-st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="centered")
-
-# --- CONFIGURACIÓN ---
 try:
-    API_KEY = st.secrets["GOOGLE_API_KEY"]
+    import pandas as pd
 except Exception:
-    API_KEY = "TU_NUEVA_CLAVE_AQUI"
+    pd = None
 
-# Modelos candidatos en orden de preferencia
+st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="wide")
+
+HISTORY_FILE = "recibozen_historial.csv"
 CANDIDATE_MODELS = [
     "gemini-2.5-flash",
     "gemini-3-flash-preview",
     "gemini-2.0-flash",
 ]
 
-# Inicializar cliente
+try:
+    API_KEY = st.secrets["GOOGLE_API_KEY"]
+except Exception:
+    API_KEY = "TU_NUEVA_CLAVE_AQUI"
+
 client = genai.Client(api_key=API_KEY)
 
-# --- CSS ---
 st.markdown("""
-    <style>
-    html, body, [data-testid="stAppViewContainer"] { background-color: #f0f4f8 !important; }
-    h1, h2, h3, p, div, label, small, span { color: #2c3e50 !important; }
+<style>
+:root {
+    --bg: #f4f7f8;
+    --surface: #ffffff;
+    --surface-2: #f8fbfb;
+    --text: #17313a;
+    --muted: #5f7480;
+    --line: #dbe6ea;
+    --primary: #0f766e;
+    --primary-2: #0b5e58;
+    --soft: #dff4ef;
+    --success: #1f8f5f;
+    --warn: #a06a17;
+    --danger: #ba3a34;
+    --shadow: 0 10px 30px rgba(11, 48, 58, 0.08);
+    --radius: 20px;
+    --radius-sm: 14px;
+}
 
-    .report-card {
-        background-color: white !important;
-        padding: 30px;
-        border-radius: 20px;
-        border-top: 10px solid #27ae60 !important;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        margin-bottom: 25px;
-        line-height: 1.6;
-    }
+html, body, [data-testid="stAppViewContainer"] {
+    background: radial-gradient(circle at top right, #eef8f5 0%, var(--bg) 38%, #f6f8fb 100%) !important;
+}
 
-    .stButton > button {
-        width: 100% !important;
-        height: 65px !important;
-        border-radius: 15px !important;
-        font-weight: bold !important;
-        font-size: 16px !important;
-        color: white !important;
-        border: none !important;
-    }
+body, p, div, label, li, span, small {
+    color: var(--text) !important;
+}
 
-    div[data-testid="column"]:nth-of-type(1) button { background-color: #3498db !important; }
-    div[data-testid="column"]:nth-of-type(2) button { background-color: #e67e22 !important; }
-    .stButton > button[kind="primary"] { background-color: #27ae60 !important; }
+.block-container {
+    max-width: 1180px;
+    padding-top: 1.2rem;
+    padding-bottom: 3rem;
+}
 
-    [data-testid="stFileUploader"] section {
-        background-color: white !important;
-        border: 2px dashed #27ae60 !important;
-    }
+.hero {
+    background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(247,252,251,.9));
+    border: 1px solid rgba(15,118,110,.10);
+    border-radius: 28px;
+    padding: 1.35rem 1.35rem 1.1rem 1.35rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+}
 
-    .mini-box {
-        background: white;
-        border-radius: 14px;
-        padding: 14px 16px;
-        border: 1px solid #d9e2ec;
-        margin-bottom: 12px;
-    }
+.hero-title {
+    font-size: clamp(1.9rem, 2.8vw, 3rem);
+    line-height: 1.05;
+    margin: 0 0 .35rem 0;
+    letter-spacing: -0.02em;
+}
 
-    .ok { color: #1e8449 !important; font-weight: 700; }
-    .warn { color: #b9770e !important; font-weight: 700; }
-    .err { color: #c0392b !important; font-weight: 700; }
-    </style>
+.hero-sub {
+    color: var(--muted) !important;
+    font-size: 1.02rem;
+    max-width: 60ch;
+}
+
+.pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem;
+    margin-top: .9rem;
+}
+
+.pill {
+    background: var(--soft);
+    color: var(--primary) !important;
+    border: 1px solid rgba(15,118,110,.12);
+    border-radius: 999px;
+    padding: .45rem .8rem;
+    font-size: .92rem;
+    font-weight: 700;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+}
+
+.soft-card {
+    background: var(--surface-2);
+    border: 1px solid #e5eff1;
+    border-radius: var(--radius-sm);
+    padding: .95rem;
+    height: 100%;
+}
+
+.metric-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1rem;
+    box-shadow: var(--shadow);
+    min-height: 132px;
+}
+
+.metric-label {
+    font-size: .92rem;
+    color: var(--muted) !important;
+    margin-bottom: .35rem;
+    font-weight: 700;
+}
+
+.metric-value {
+    font-size: clamp(1.55rem, 2.5vw, 2.25rem);
+    line-height: 1.05;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.metric-help {
+    margin-top: .45rem;
+    color: var(--muted) !important;
+    font-size: .95rem;
+}
+
+.state-good { color: var(--success) !important; font-weight: 800; }
+.state-warn { color: var(--warn) !important; font-weight: 800; }
+.state-bad  { color: var(--danger) !important; font-weight: 800; }
+
+.section-title {
+    font-size: 1.18rem;
+    margin-bottom: .8rem;
+    font-weight: 800;
+}
+
+.summary-box {
+    background: linear-gradient(180deg, #fdfefe 0%, #f6fbfa 100%);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1rem;
+    box-shadow: var(--shadow);
+}
+
+.big-text {
+    font-size: 1.06rem;
+    line-height: 1.7;
+}
+
+.helper-list {
+    margin: 0;
+    padding-left: 1.15rem;
+}
+
+.helper-list li {
+    margin-bottom: .5rem;
+}
+
+.small-note {
+    color: var(--muted) !important;
+    font-size: .95rem;
+}
+
+.history-table-wrap {
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+}
+
+.history-table th, .history-table td {
+    text-align: left;
+    padding: .82rem .8rem;
+    border-bottom: 1px solid #ebf0f2;
+    font-size: .95rem;
+}
+
+.history-table th {
+    background: #f8fbfb;
+    color: var(--muted) !important;
+    font-weight: 800;
+    position: sticky;
+    top: 0;
+}
+
+.audio-box {
+    background: #f8fbfb;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: .8rem;
+}
+
+div[data-testid="stFileUploader"] section {
+    background: rgba(255,255,255,.82) !important;
+    border: 2px dashed rgba(15,118,110,.3) !important;
+    border-radius: 18px !important;
+}
+
+.stButton > button {
+    border-radius: 14px !important;
+    height: 52px !important;
+    font-weight: 800 !important;
+    border: none !important;
+}
+
+.stButton > button[kind="primary"] {
+    background: var(--primary) !important;
+    color: white !important;
+}
+
+div[data-testid="column"] .stButton > button {
+    background: white !important;
+    color: var(--text) !important;
+    border: 1px solid var(--line) !important;
+}
+
+div[data-testid="column"] .stButton > button:hover,
+.stButton > button[kind="primary"]:hover {
+    transform: translateY(-1px);
+}
+
+.footer-note {
+    text-align:center;
+    color: var(--muted) !important;
+    margin-top: 1rem;
+    font-size: .9rem;
+}
+
+@media (max-width: 768px) {
+    .hero { padding: 1rem; border-radius: 22px; }
+    .metric-card { min-height: unset; }
+}
+</style>
 """, unsafe_allow_html=True)
+
+
+def init_history_file():
+    if not os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "timestamp", "periodo", "empresa", "total_eur", "consumo_kwh",
+                "potencia_kw", "impuestos_eur", "consejo", "resumen", "modelo"
+            ])
+
+
+def read_history():
+    init_history_file()
+    rows = []
+    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rows.append(row)
+    return rows
+
+
+def save_history_item(item):
+    init_history_file()
+    with open(HISTORY_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            item.get("timestamp", ""),
+            item.get("periodo", ""),
+            item.get("empresa", ""),
+            item.get("total_eur", ""),
+            item.get("consumo_kwh", ""),
+            item.get("potencia_kw", ""),
+            item.get("impuestos_eur", ""),
+            item.get("consejo", ""),
+            item.get("resumen", ""),
+            item.get("modelo", ""),
+        ])
 
 
 def leer_pdf(file):
@@ -78,7 +308,7 @@ def leer_pdf(file):
     textos = []
     for page in reader.pages:
         textos.append(page.extract_text() or "")
-    return "".join(textos).strip()
+    return "\n".join(textos).strip()
 
 
 def preparar_audio(texto):
@@ -92,8 +322,6 @@ def extraer_texto_respuesta(response):
     texto = getattr(response, "text", None)
     if texto:
         return texto.strip()
-
-    # Fallback por si cambia la forma de respuesta
     try:
         candidates = getattr(response, "candidates", []) or []
         trozos = []
@@ -113,11 +341,9 @@ def modelo_soporta_generate_content(model_obj):
     actions = getattr(model_obj, "supported_actions", None)
     if actions and "generateContent" in actions:
         return True
-
     old_actions = getattr(model_obj, "supported_generation_methods", None)
     if old_actions and "generateContent" in old_actions:
         return True
-
     return False
 
 
@@ -141,12 +367,10 @@ def probar_modelo(model_name):
         model=model_name,
         contents="Responde solo OK"
     )
-    texto = extraer_texto_respuesta(respuesta)
-    return texto
+    return extraer_texto_respuesta(respuesta)
 
 
 def resolver_modelo():
-    # 1) Probar candidatos conocidos
     errores = []
     for model_name in CANDIDATE_MODELS:
         try:
@@ -155,10 +379,7 @@ def resolver_modelo():
         except Exception as e:
             errores.append(f"{model_name}: {e}")
 
-    # 2) Descubrir modelos desde la API
     detectados = listar_modelos_validos()
-
-    # Priorizar flash
     prioridad = []
     resto = []
     for m in detectados:
@@ -176,10 +397,7 @@ def resolver_modelo():
         except Exception as e:
             errores.append(f"{model_name}: {e}")
 
-    raise RuntimeError(
-        "No se encontró ningún modelo compatible con generateContent para esta API key.\n\n"
-        + "\n".join(errores[:8])
-    )
+    raise RuntimeError("No se encontró un modelo compatible con generateContent para esta API key.")
 
 
 def obtener_modelo_activo():
@@ -190,122 +408,20 @@ def obtener_modelo_activo():
     return st.session_state["modelo_activo"]
 
 
-def generar_analisis_factura(texto_raw, model_name):
-    prompt = f"""
-Eres ReciboZen. Analiza esta factura eléctrica y responde en español claro.
-
-Devuelve DOS PARTES separadas exactamente por:
----
-
-PRIMERA PARTE:
-Un informe útil y agradable de leer con:
-- Total (€)
-- Consumo (kWh)
-- Potencia (kW)
-- Impuestos
-- Consejo práctico para ahorrar o entender mejor la factura
-
-SEGUNDA PARTE:
-Un guion de voz alegre, rápido y cercano, de máximo 70 palabras,
-que empiece exactamente por:
-¡Hola, hola!
-
-Factura:
-{texto_raw[:3500]}
-"""
-
-    response = client.models.generate_content(
-        model=model_name,
-        contents=prompt
-    )
-
-    texto = extraer_texto_respuesta(response)
-    if not texto:
-        raise RuntimeError("La API respondió sin texto legible.")
-
-    partes = texto.split("---", 1)
-    analisis = partes[0].strip()
-    guion = partes[1].strip() if len(partes) > 1 else analisis[:300]
-
-    return analisis, guion
-
-
-# --- UI ---
-st.title("🧘 ReciboZen")
-st.write("### Tu factura explicada con cariño y claridad")
-
-with st.expander("Diagnóstico del motor IA", expanded=False):
-    try:
-        modelo = obtener_modelo_activo()
-        st.markdown(f"<div class='mini-box'><span class='ok'>Modelo activo:</span> {modelo}</div>", unsafe_allow_html=True)
-
-        errores_previos = st.session_state.get("errores_modelos", [])
-        if errores_previos:
-            st.markdown("<div class='mini-box'><span class='warn'>Modelos descartados:</span><br>" +
-                        "<br>".join(errores_previos[:5]) + "</div>", unsafe_allow_html=True)
-
-        modelos_detectados = listar_modelos_validos()
-        if modelos_detectados:
-            vista = ", ".join(modelos_detectados[:12])
-            st.markdown(f"<div class='mini-box'><span class='ok'>Modelos detectados:</span> {vista}</div>", unsafe_allow_html=True)
+def limpiar_numero(texto):
+    if texto is None:
+        return None
+    t = str(texto).strip()
+    if not t:
+        return None
+    t = t.replace("€", "").replace("EUR", "").replace("eur", "")
+    t = t.replace("kWh", "").replace("kw", "").replace("kW", "")
+    t = t.replace(" ", "")
+    if "," in t and "." in t:
+        if t.rfind(",") > t.rfind("."):
+            t = t.replace(".", "").replace(",", ".")
         else:
-            st.markdown("<div class='mini-box'><span class='warn'>No se pudieron listar modelos.</span></div>", unsafe_allow_html=True)
-
-    except Exception as e:
-        st.markdown(f"<div class='mini-box'><span class='err'>Diagnóstico:</span> {e}</div>", unsafe_allow_html=True)
-
-uploaded_file = st.file_uploader("Carga tu factura (PDF)", type="pdf")
-
-if uploaded_file:
-    if st.button("🚀 ¡DAME LUZ SOBRE MI FACTURA!", type="primary"):
-        with st.spinner("ReciboZen está analizando tu factura..."):
-            try:
-                if API_KEY == "TU_NUEVA_CLAVE_AQUI":
-                    raise RuntimeError("Falta configurar GOOGLE_API_KEY en Streamlit Secrets.")
-
-                texto_raw = leer_pdf(uploaded_file)
-                if not texto_raw:
-                    raise RuntimeError("No se pudo extraer texto del PDF.")
-
-                model_name = obtener_modelo_activo()
-                analisis, guion = generar_analisis_factura(texto_raw, model_name)
-
-                st.session_state["analisis"] = analisis
-                st.session_state["audio_b64"] = preparar_audio(guion)
-                st.session_state["reproducir"] = False
-                st.session_state["guion_audio"] = guion
-
-            except Exception as e:
-                st.error(f"Error con ReciboZen: {e}")
-
-if "analisis" in st.session_state:
-    st.markdown(
-        f"<div class='report-card'><h3>📋 Informe Zen</h3>{st.session_state['analisis']}</div>",
-        unsafe_allow_html=True
-    )
-
-    with st.expander("Ver guion del audio", expanded=False):
-        st.write(st.session_state.get("guion_audio", ""))
-
-    st.write("### 🔊 Versión animada")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("▶️ INICIAR AUDIO", use_container_width=True):
-            st.session_state["reproducir"] = True
-
-    with col2:
-        if st.button("⏹️ PARAR AUDIO", use_container_width=True):
-            st.session_state["reproducir"] = False
-
-    if st.session_state.get("reproducir"):
-        st.components.v1.html(
-            f'''
-            <audio autoplay controls style="width:100%;">
-                <source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3">
-            </audio>
-            ''',
-            height=50
-        )
-
-st.markdown("<br><hr><center><small>ReciboZen · 2026 · AutoModel Edition</small></center>", unsafe_allow_html=True)
+            t = t.replace(",", "")
+    else:
+        t = t.replace(",", ".")
+    m = r
