@@ -1,0 +1,17 @@
+<svg width="420" height="96" viewBox="0 0 420 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ReciboZen propuesta A">
+  <defs>
+    <linearGradient id="a1" x1="18" y1="18" x2="84" y2="84" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#73C8FF"/>
+      <stop offset="1" stop-color="#1878C9"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="8" width="78" height="78" rx="24" fill="#EFF7FF"/>
+  <path d="M31 31.5C31 27.3579 34.3579 24 38.5 24H57.5C61.6421 24 65 27.3579 65 31.5V62.5C65 66.6421 61.6421 70 57.5 70H38.5C34.3579 70 31 66.6421 31 62.5V31.5Z" fill="url(#a1)"/>
+  <path d="M42 40.5H54" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M42 49H55" stroke="white" stroke-width="3.5" stroke-linecap="round" opacity="0.92"/>
+  <path d="M42 57.5H50.5" stroke="white" stroke-width="3.5" stroke-linecap="round" opacity="0.82"/>
+  <path d="M66 57C71.3333 53.6667 76.6667 53.6667 82 57" stroke="#7CC7FF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M66 65C71.3333 61.6667 76.6667 61.6667 82 65" stroke="#A6DBFF" stroke-width="4" stroke-linecap="round"/>
+  <text x="108" y="49" fill="#163042" font-family="Manrope, Inter, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.02em">ReciboZen</text>
+  <text x="110" y="69" fill="#6B8295" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="500">Tu factura explicada con calma</text>
+</svg>
