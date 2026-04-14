@@ -14,13 +14,12 @@ except:
 
 genai.configure(api_key=API_KEY)
 
-# FORZAMOS EL MODELO 1.5 FLASH (1500 usos al día)
-# Usamos el nombre técnico 'gemini-1.5-flash' que es el estándar de cuota alta
-model = genai.GenerativeModel('gemini-1.5-flash')
+# NOMBRE TÉCNICO COMPLETO PARA EVITAR EL 404
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="centered")
 
-# --- CSS MEJORADO (Botones Gemelos y Naranja Real) ---
+# --- CSS RADICAL (SIMETRÍA Y BOTÓN NARANJA) ---
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] { background-color: #f0f4f8 !important; }
@@ -29,20 +28,21 @@ st.markdown("""
     .report-card { 
         background-color: white !important; padding: 30px; border-radius: 20px; 
         border-top: 10px solid #27ae60; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        margin-bottom: 25px; line-height: 1.6;
+        margin-bottom: 25px;
     }
 
-    /* Alineación de botones de audio */
+    /* Botones Simétricos */
     .stButton > button {
-        width: 100% !important; height: 65px !important; border-radius: 15px !important;
-        font-weight: bold !important; font-size: 16px !important; color: white !important; border: none !important;
+        width: 100% !important; height: 65px !important;
+        border-radius: 15px !important; font-weight: bold !important;
+        font-size: 16px !important; color: white !important; border: none !important;
     }
     
-    /* Botón Iniciar (Azul) */
+    /* Botón INICIAR (Azul) */
     .stButton > button[kind="secondary"] { background-color: #3498db !important; }
     
-    /* Botón Parar (Naranja) - Localización exacta por columna */
-    div[data-testid="column"]:nth-of-type(2) button {
+    /* Botón PARAR (Naranja) - Selección por columna */
+    div[data-testid="stHorizontalBlock"] div:nth-child(2) button {
         background-color: #e67e22 !important;
     }
 
@@ -68,19 +68,16 @@ uploaded_file = st.file_uploader("Carga tu factura (PDF)", type="pdf")
 
 if uploaded_file:
     if st.button("🚀 ¡DAME LUZ SOBRE MI FACTURA!", type="primary"):
-        with st.spinner('Analizando con paciencia...'):
+        with st.spinner('Conectando con ReciboZen...'):
             try:
+                time.sleep(1)
                 texto_raw = leer_pdf(uploaded_file)
                 
-                # Instrucciones muy claras para que no se olvide el resumen técnico
+                # Instrucciones estrictas para el informe completo
                 prompt = f"""
-                Eres ReciboZen. Analiza esta factura de energía.
-                Genera dos bloques separados por '---':
-                
-                BLOQUE 1 (Para leer): Informe detallado. Saludo amable, Importe Total (€), Consumo (kWh), Potencia (kW), Impuestos y un Consejo de ahorro.
-                
-                BLOQUE 2 (Para audio): Guion alegre, desenfadado y rápido. Empieza con '¡Hola, hola!'.
-                
+                Eres ReciboZen. Analiza esta factura. Separa con '---':
+                1. Informe visual completo para leer: Saludo, Total (€), Consumo (kWh), Potencia (kW), Impuestos y Consejo de ahorro.
+                2. Guion de voz muy alegre y rápido (máx 70 palabras) que empiece con '¡Hola, hola!'.
                 Factura: {texto_raw[:3500]}
                 """
                 
@@ -91,11 +88,11 @@ if uploaded_file:
                     st.session_state['audio_b64'] = preparar_audio(partes[1].strip())
                 else:
                     st.session_state['analisis'] = response
-                    st.session_state['audio_b64'] = preparar_audio("¡Hola! Tu informe ya está listo para leer.")
+                    st.session_state['audio_b64'] = preparar_audio("¡Hola! Tu informe está listo.")
                 
                 st.session_state['reproducir'] = False
             except Exception as e:
-                st.error(f"Nota: {e}")
+                st.error(f"Aviso técnico: {e}")
 
 if 'analisis' in st.session_state:
     st.markdown(f"<div class='report-card'><h3>📋 Informe Zen</h3>{st.session_state['analisis']}</div>", unsafe_allow_html=True)
