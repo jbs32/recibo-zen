@@ -27,7 +27,7 @@ model = configurar_ia()
 
 st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="centered")
 
-# --- CSS DEFINITIVO (Simetría y Colores) ---
+# --- CSS REFORZADO (SIMETRÍA Y COLOR NARANJA) ---
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] { background-color: #f0f4f8 !important; }
@@ -37,15 +37,23 @@ st.markdown("""
         border-top: 10px solid #27ae60; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         margin-bottom: 25px; line-height: 1.6;
     }
-    /* Alineación de botones */
+    
+    /* Botones Simétricos */
     .stButton > button {
         width: 100% !important; height: 65px !important;
         border-radius: 15px !important; font-weight: bold !important;
         font-size: 16px !important; color: white !important; border: none !important;
     }
+    
+    /* Botón INICIAR (Azul) */
     .stButton > button[kind="secondary"] { background-color: #3498db !important; }
-    /* Botón de parar en naranja (el segundo de la fila) */
-    div[data-testid="column"]:nth-child(2) button { background-color: #e67e22 !important; }
+    
+    /* FUERZA BRUTA PARA EL BOTÓN PARAR (Naranja) */
+    /* Buscamos el segundo botón dentro de la fila de columnas */
+    div[data-testid="column"]:nth-of-type(2) button {
+        background-color: #e67e22 !important;
+    }
+
     .stButton > button[kind="primary"] { background-color: #27ae60 !important; }
     [data-testid="stFileUploader"] section { background-color: white !important; border: 2px dashed #27ae60 !important; }
     </style>
@@ -56,7 +64,6 @@ def leer_pdf(file):
     return "".join([page.extract_text() for page in reader.pages])
 
 def preparar_audio(texto):
-    # Ya no quitamos comas ni puntos para que lea los decimales bien (47,03€)
     tts = gTTS(text=texto, lang='es', slow=False)
     audio_io = io.BytesIO()
     tts.write_to_fp(audio_io)
@@ -69,33 +76,44 @@ if model:
     uploaded_file = st.file_uploader("Carga tu factura (PDF)", type="pdf")
     if uploaded_file:
         if st.button("🚀 ¡DAME LUZ SOBRE MI FACTURA!", type="primary"):
-            with st.spinner('Preparando tu Informe Zen...'):
+            with st.spinner('Analizando cada detalle...'):
                 try:
                     texto_raw = leer_pdf(uploaded_file)
-                    # VOLVEMOS AL PROMPT DETALLADO QUE FUNCIONABA
+                    # PROMPT BLINDADO: Instrucciones ultra-precisas
                     prompt = f"""
-                    Eres ReciboZen, un experto amable. Analiza esta factura de energía.
-                    Escribe un informe detallado con:
-                    - Total a pagar (€)
-                    - Consumo eléctrico (kWh) y Potencia contratada (kW)
-                    - Desglose amigable de Impuestos (IVA e Impuesto Eléctrico)
-                    - Un consejo personalizado de ahorro.
-                    Usa un lenguaje muy humano y cercano.
-                    ---
-                    Después escribe un guion de voz MUY ALEGRE de unas 60 palabras que empiece con '¡Hola, hola!' para resumir esto de forma divertida.
-                    Texto factura: {texto_raw[:3500]}
+                    Eres ReciboZen. Analiza esta factura de energía y genera una respuesta con dos partes CLARAMENTE separadas por el marcador '---'.
+
+                    PARTE 1 (Informe para leer): 
+                    Empieza con un saludo amable. 
+                    Luego, obligatoriamente muestra estos datos en viñetas:
+                    - **Total a pagar**: (en €)
+                    - **Consumo**: (en kWh)
+                    - **Potencia**: (en kW)
+                    - **Impuestos**: (Desglose breve)
+                    Termina con un consejo de ahorro cercano.
+
+                    PARTE 2 (Guion para audio): 
+                    Escribe un resumen MUY ALEGRE de máximo 60 palabras que empiece con '¡Hola, hola!'. No incluyas símbolos raros, solo texto para ser leído.
+
+                    Factura: {texto_raw[:3500]}
                     """
                     response = model.generate_content(prompt).text
-                    partes = response.split('---')
                     
-                    st.session_state['analisis'] = partes[0].strip()
-                    st.session_state['audio_b64'] = preparar_audio(partes[1].strip() if len(partes) > 1 else partes[0])
+                    if "---" in response:
+                        partes = response.split('---')
+                        st.session_state['analisis'] = partes[0].strip()
+                        st.session_state['audio_b64'] = preparar_audio(partes[1].strip())
+                    else:
+                        st.session_state['analisis'] = response
+                        st.session_state['audio_b64'] = preparar_audio("¡Hola! Aquí tienes tu informe listo para leer.")
+                    
                     st.session_state['reproducir'] = False
                 except Exception as e:
                     st.error(f"Error: {e}")
 
     if 'analisis' in st.session_state:
         st.markdown(f"<div class='report-card'><h3>📋 Informe Zen</h3>{st.session_state['analisis']}</div>", unsafe_allow_html=True)
+        
         st.write("### 🔊 Versión animada")
         col1, col2 = st.columns(2)
         with col1:
