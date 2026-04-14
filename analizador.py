@@ -5,6 +5,7 @@ from gtts import gTTS
 import io
 import base64
 
+
 # --- CONEXIÓN DIRECTA ---
 # Ponemos la clave aquí directamente para asegurar que llega
 API_KEY = "AIzaSyAiuURS2QzBLgEyjBj_ihaSDMN2h_Uwr88"
