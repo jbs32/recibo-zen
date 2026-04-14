@@ -14,20 +14,13 @@ except:
 
 genai.configure(api_key=API_KEY)
 
-@st.cache_resource
-def configurar_ia():
-    try:
-        modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        for m in modelos:
-            if "1.5-flash" in m: return genai.GenerativeModel(m)
-        return genai.GenerativeModel(modelos[0])
-    except: return None
-
-model = configurar_ia()
+# FORZAMOS EL MODELO 1.5 FLASH (1500 usos/día vs los 20 del otro)
+# Usamos el nombre exacto que no suele fallar
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="centered")
 
-# --- CSS REFORZADO (SIMETRÍA Y COLOR NARANJA) ---
+# --- CSS DEFINITIVO (Botones Gemelos + Naranja Real) ---
 st.markdown("""
     <style>
     html, body, [data-testid="stAppViewContainer"] { background-color: #f0f4f8 !important; }
@@ -38,7 +31,7 @@ st.markdown("""
         margin-bottom: 25px; line-height: 1.6;
     }
     
-    /* Botones Simétricos */
+    /* Simetría total de botones */
     .stButton > button {
         width: 100% !important; height: 65px !important;
         border-radius: 15px !important; font-weight: bold !important;
@@ -48,9 +41,9 @@ st.markdown("""
     /* Botón INICIAR (Azul) */
     .stButton > button[kind="secondary"] { background-color: #3498db !important; }
     
-    /* FUERZA BRUTA PARA EL BOTÓN PARAR (Naranja) */
-    /* Buscamos el segundo botón dentro de la fila de columnas */
-    div[data-testid="column"]:nth-of-type(2) button {
+    /* Botón PARAR (Naranja vibrante) */
+    /* Usamos una técnica de CSS para capturar el segundo botón de la fila */
+    div[data-testid="stHorizontalBlock"] div:nth-child(2) button {
         background-color: #e67e22 !important;
     }
 
@@ -64,6 +57,7 @@ def leer_pdf(file):
     return "".join([page.extract_text() for page in reader.pages])
 
 def preparar_audio(texto):
+    # Sin recortes raros para que lea bien los números
     tts = gTTS(text=texto, lang='es', slow=False)
     audio_io = io.BytesIO()
     tts.write_to_fp(audio_io)
@@ -72,58 +66,52 @@ def preparar_audio(texto):
 st.title("🧘 ReciboZen")
 st.write("### Tu factura explicada con cariño y claridad")
 
-if model:
-    uploaded_file = st.file_uploader("Carga tu factura (PDF)", type="pdf")
-    if uploaded_file:
-        if st.button("🚀 ¡DAME LUZ SOBRE MI FACTURA!", type="primary"):
-            with st.spinner('Analizando cada detalle...'):
-                try:
-                    texto_raw = leer_pdf(uploaded_file)
-                    # PROMPT BLINDADO: Instrucciones ultra-precisas
-                    prompt = f"""
-                    Eres ReciboZen. Analiza esta factura de energía y genera una respuesta con dos partes CLARAMENTE separadas por el marcador '---'.
+uploaded_file = st.file_uploader("Carga tu factura (PDF)", type="pdf")
 
-                    PARTE 1 (Informe para leer): 
-                    Empieza con un saludo amable. 
-                    Luego, obligatoriamente muestra estos datos en viñetas:
-                    - **Total a pagar**: (en €)
-                    - **Consumo**: (en kWh)
-                    - **Potencia**: (en kW)
-                    - **Impuestos**: (Desglose breve)
-                    Termina con un consejo de ahorro cercano.
-
-                    PARTE 2 (Guion para audio): 
-                    Escribe un resumen MUY ALEGRE de máximo 60 palabras que empiece con '¡Hola, hola!'. No incluyas símbolos raros, solo texto para ser leído.
-
-                    Factura: {texto_raw[:3500]}
-                    """
-                    response = model.generate_content(prompt).text
-                    
-                    if "---" in response:
-                        partes = response.split('---')
-                        st.session_state['analisis'] = partes[0].strip()
-                        st.session_state['audio_b64'] = preparar_audio(partes[1].strip())
-                    else:
-                        st.session_state['analisis'] = response
-                        st.session_state['audio_b64'] = preparar_audio("¡Hola! Aquí tienes tu informe listo para leer.")
-                    
-                    st.session_state['reproducir'] = False
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-    if 'analisis' in st.session_state:
-        st.markdown(f"<div class='report-card'><h3>📋 Informe Zen</h3>{st.session_state['analisis']}</div>", unsafe_allow_html=True)
-        
-        st.write("### 🔊 Versión animada")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("▶️ INICIAR AUDIO", use_container_width=True):
-                st.session_state['reproducir'] = True
-        with col2:
-            if st.button("⏹️ PARAR AUDIO", use_container_width=True):
+if uploaded_file:
+    if st.button("🚀 ¡DAME LUZ SOBRE MI FACTURA!", type="primary"):
+        with st.spinner('ReciboZen está analizando...'):
+            try:
+                texto_raw = leer_pdf(uploaded_file)
+                # Prompt estructurado para no perder datos
+                prompt = f"""
+                Eres ReciboZen. Analiza esta factura.
+                Proporciona dos partes separadas por '---':
+                
+                PARTE 1: Informe detallado para leer. 
+                Debe incluir SIEMPRE: Saludo amable, Total (€), Consumo (kWh), Potencia (kW) e Impuestos. Termina con un consejo de ahorro.
+                
+                PARTE 2: Guion de voz alegre (máx 70 palabras). Empieza con '¡Hola, hola!'.
+                
+                Factura: {texto_raw[:3500]}
+                """
+                
+                response = model.generate_content(prompt).text
+                if "---" in response:
+                    partes = response.split('---')
+                    st.session_state['analisis'] = partes[0].strip()
+                    st.session_state['audio_b64'] = preparar_audio(partes[1].strip())
+                else:
+                    st.session_state['analisis'] = response
+                    st.session_state['audio_b64'] = preparar_audio(response[:200])
+                
                 st.session_state['reproducir'] = False
-        
-        if st.session_state.get('reproducir'):
-            st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+if 'analisis' in st.session_state:
+    st.markdown(f"<div class='report-card'><h3>📋 Informe Zen</h3>{st.session_state['analisis']}</div>", unsafe_allow_html=True)
+    
+    st.write("### 🔊 Versión animada")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("▶️ INICIAR AUDIO", use_container_width=True):
+            st.session_state['reproducir'] = True
+    with col2:
+        if st.button("⏹️ PARAR AUDIO", use_container_width=True):
+            st.session_state['reproducir'] = False
+    
+    if st.session_state.get('reproducir'):
+        st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
 
 st.markdown("<br><hr><center><small>ReciboZen · 2026</small></center>", unsafe_allow_html=True)
