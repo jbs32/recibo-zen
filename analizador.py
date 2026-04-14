@@ -14,48 +14,30 @@ except:
 
 genai.configure(api_key=GOOGLE_API_KEY)
 
-@st.cache_resource
-def obtener_modelo_seguro():
-    nombres = ['models/gemini-2.5-flash', 'models/gemini-1.5-flash']
-    for n in nombres:
-        try:
-            return genai.GenerativeModel(n)
-        except:
-            continue
-    return None
-
-model = obtener_modelo_seguro()
+# USAMOS 1.5 FLASH: El modelo con más cuota gratuita (1500 peticiones/día)
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="centered")
 
-# --- CSS DEFINITIVO: EL "ANIQUILADOR" DE MODO OSCURO ---
+# --- CSS TOTAL (BLINDAJE CONTRA MODO OSCURO) ---
 st.markdown("""
     <style>
-    /* Forzamos el color de fondo de toda la ventana */
-    html, body, [data-testid="stAppViewContainer"] {
-        background-color: #f0f4f8 !important;
-    }
+    html, body, [data-testid="stAppViewContainer"] { background-color: #f0f4f8 !important; }
+    h1, h2, h3, p, span, div, label, .stMarkdown { color: #2c3e50 !important; }
 
-    /* MATAMOS EL NEGRO DEL UPLOADER */
+    /* Forzamos el blanco en el cargador de archivos */
     [data-testid="stFileUploader"] section {
         background-color: white !important;
         border: 2px dashed #27ae60 !important;
+        color: #2c3e50 !important;
     }
     
-    /* Buscamos el texto y los iconos dentro del uploader */
-    [data-testid="stFileUploader"] * {
-        color: #2c3e50 !important;
-        fill: #2c3e50 !important;
-    }
-
-    /* Si ya hay un archivo cargado, el recuadro que aparece también debe ser blanco */
     [data-testid="stFileUploaderSmallFileDropzone"], 
     [data-testid="stFileUploaderDropzone"] {
         background-color: white !important;
         color: #2c3e50 !important;
     }
 
-    /* Tarjeta de Informe */
     .report-card { 
         background-color: white !important; 
         padding: 30px; 
@@ -65,11 +47,7 @@ st.markdown("""
         color: #2c3e50 !important;
     }
 
-    /* Botones */
-    .stButton>button { 
-        height: 65px; border-radius: 15px; 
-        font-weight: bold !important; color: white !important; 
-    }
+    .stButton>button { height: 65px; border-radius: 15px; font-weight: bold !important; color: white !important; }
     .stButton > button[kind="primary"] { background-color: #27ae60 !important; }
     .stButton > button[kind="secondary"] { background-color: #3498db !important; }
     div.row-widget.stButton.stop-btn > button { background-color: #e67e22 !important; }
@@ -81,6 +59,7 @@ def leer_pdf(file):
     return "".join([page.extract_text() for page in reader.pages])
 
 def preparar_audio_base64(texto):
+    # gTTS es la voz de Google, muy natural
     tts = gTTS(text=texto.replace('*', '').replace('#', ''), lang='es')
     archivo_audio = io.BytesIO()
     tts.write_to_fp(archivo_audio)
@@ -90,32 +69,34 @@ def preparar_audio_base64(texto):
 st.title("🧘 ReciboZen")
 st.write("### Su factura explicada con claridad y paz")
 
-if model:
-    uploaded_file = st.file_uploader("Cargue su PDF aquí", type="pdf")
-    if uploaded_file:
-        if st.button("🚀 ANALIZAR MI FACTURA", type="primary"):
-            with st.spinner('Analizando...'):
-                try:
-                    time.sleep(1)
-                    texto_factura = leer_pdf(uploaded_file)
-                    response = model.generate_content(f"Analiza esta factura para una persona mayor. Tono amable. Indica Total, Consumo y Potencia. Texto: {texto_factura[:3000]}")
-                    st.session_state['analisis'] = response.text
-                    st.session_state['audio_b64'] = preparar_audio_base64(response.text)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+uploaded_file = st.file_uploader("Cargue su factura en PDF", type="pdf")
 
-    if 'analisis' in st.session_state:
-        st.markdown(f"<div class='report-card'><h3>📋 Informe ReciboZen</h3>{st.session_state['analisis']}</div>", unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔊 ESCUCHAR", type="secondary", use_container_width=True):
-                st.session_state['reproducir'] = True
-        with col2:
-            st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
-            if st.button("⏹️ PARAR", type="secondary", use_container_width=True):
-                st.session_state['reproducir'] = False
-            st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state.get('reproducir'):
-            st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
+if uploaded_file:
+    if st.button("🚀 ANALIZAR MI FACTURA", type="primary"):
+        with st.spinner('ReciboZen está leyendo los datos...'):
+            try:
+                texto_factura = leer_pdf(uploaded_file)
+                # El modelo 1.5 es excelente resumiendo
+                prompt = f"Eres ReciboZen. Analiza esta factura de Visalia para una persona mayor. Indica Importe Total, Consumo y Potencia. Sé amable y directo. Texto: {texto_factura[:3500]}"
+                response = model.generate_content(prompt)
+                st.session_state['analisis'] = response.text
+                st.session_state['audio_b64'] = preparar_audio_base64(response.text)
+            except Exception as e:
+                st.error(f"Lo siento, Google está descansando. Espera un minuto. Error: {e}")
+
+if 'analisis' in st.session_state:
+    st.markdown(f"<div class='report-card'><h3>📋 Informe ReciboZen</h3>{st.session_state['analisis']}</div>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔊 ESCUCHAR", type="secondary", use_container_width=True):
+            st.session_state['reproducir'] = True
+    with col2:
+        st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
+        if st.button("⏹️ PARAR", type="secondary", use_container_width=True):
+            st.session_state['reproducir'] = False
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    if st.session_state.get('reproducir'):
+        st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
 
 st.markdown("<br><hr><center><small style='color: #7f8c8d !important;'>ReciboZen · 2026</small></center>", unsafe_allow_html=True)
