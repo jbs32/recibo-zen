@@ -6,43 +6,75 @@ import io
 import base64
 
 # --- CONFIGURACIÓN DE SEGURIDAD ---
-# En Streamlit Cloud, esto leerá la clave de "Advanced Settings > Secrets"
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except:
-    # Por si lo pruebas en local antes de subirlo
     GOOGLE_API_KEY = "TU_CLAVE_AQUI"
 
 genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('models/gemini-2.5-flash')
 
-@st.cache_resource
-def configurar_modelo():
-    return genai.GenerativeModel('models/gemini-2.5-flash')
-
-model = configurar_modelo()
-
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="ReciboZen", page_icon="🧘", layout="centered")
 
+# --- CSS BLINDADO (FUERZA COLORES ZEN) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #f0f4f8 !important; }
+    /* Forzamos el fondo claro en toda la app */
+    .stApp {
+        background-color: #f0f4f8 !important;
+    }
+    
+    /* Forzamos que todos los textos sean oscuros y legibles */
+    h1, h2, h3, p, span, div, label {
+        color: #2c3e50 !important;
+    }
+
+    /* Tarjeta del Informe */
     .report-card { 
-        background-color: #ffffff; 
+        background-color: #ffffff !important; 
         padding: 30px; 
         border-radius: 20px; 
         border-top: 10px solid #27ae60; 
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         margin-bottom: 20px;
+        color: #2c3e50 !important;
     }
-    div[data-testid="stHorizontalBlock"] { align-items: center !important; }
+
+    /* Botones - Ajuste de colores y visibilidad */
     .stButton>button { 
         width: 100%; height: 65px; border-radius: 15px; 
         font-weight: bold !important; font-size: 18px !important;
-        border: none; color: white !important;
+        border: none !important;
+        color: white !important; /* Texto del botón siempre blanco */
     }
-    div.stButton > button[kind="secondary"] { background-color: #3498db !important; }
-    div.row-widget.stButton.stop-btn > button { background-color: #e67e22 !important; }
-    .stButton > button[kind="primary"] { background-color: #27ae60 !important; }
+
+    /* Botón Analizar (Verde) */
+    .stButton > button[kind="primary"] { 
+        background-color: #27ae60 !important; 
+    }
+
+    /* Botón Escuchar (Azul) */
+    .stButton > button[kind="secondary"] { 
+        background-color: #3498db !important; 
+    }
+
+    /* Botón Parar (Naranja) */
+    div.row-widget.stButton.stop-btn > button {
+        background-color: #e67e22 !important;
+    }
+
+    /* Caja de subida de archivos */
+    [data-testid="stFileUploader"] section {
+        background-color: #ffffff !important;
+        border: 2px dashed #27ae60 !important;
+        border-radius: 15px !important;
+    }
+    
+    /* Texto dentro de la caja de subida */
+    [data-testid="stFileUploader"] label, [data-testid="stFileUploader"] div {
+        color: #2c3e50 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -58,6 +90,7 @@ def preparar_audio_base64(texto):
     archivo_audio.seek(0)
     return base64.b64encode(archivo_audio.read()).decode()
 
+# --- INTERFAZ ---
 st.title("🧘 ReciboZen")
 st.write("### Su factura explicada con claridad y paz")
 
@@ -93,4 +126,4 @@ if uploaded_file is not None:
             audio_html = f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>'
             st.components.v1.html(audio_html, height=0)
 
-st.markdown("<br><hr><center><small>ReciboZen · 2026</small></center>", unsafe_allow_html=True)
+st.markdown("<br><hr><center><small style='color: #7f8c8d !important;'>ReciboZen · 2026</small></center>", unsafe_allow_html=True)
