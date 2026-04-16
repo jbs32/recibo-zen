@@ -20,7 +20,7 @@ if not API_KEY:
     st.stop()
 
 client = genai.Client(api_key=API_KEY)
-MODELOS_ANALISIS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+MODELOS_ANALISIS = ["gemini-2.5-flash", "gemini-2.0-flash"]
 
 st.markdown(
     """
