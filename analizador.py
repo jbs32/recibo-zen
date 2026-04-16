@@ -449,6 +449,16 @@ def construir_respuesta_local(extraidos_pdf):
     return "\n".join(lineas)
 
 
+
+
+def hay_datos_utiles(factura):
+    claves = ["periodo", "compania", "total_pagar", "consumo_kwh", "potencia_kw", "impuestos"]
+    for clave in claves:
+        valor = str(factura.get(clave, "")).strip().lower()
+        if valor and valor not in ["no detectado", "no detectada", "none"]:
+            return True
+    return False
+
 def render_metric_card(label, value, tooltip, delta=None):
     delta_html = f"<div class='metric-delta'>Frente a la anterior: {esc(delta)}</div>" if delta else ""
     st.markdown(
@@ -557,12 +567,19 @@ if uploaded_file and analizar:
                 parsed = parsear_bloques(construir_respuesta_local(extraidos_pdf))
                 parsed = combinar_datos(parsed, extraidos_pdf)
                 parsed["modelo_usado"] = "modo_local_sin_ia"
-                st.warning("La IA sigue saturada. Se ha usado un análisis básico local con los datos detectados en el PDF.")
-            st.session_state["factura_actual"] = parsed
-            st.session_state["last_file_hash"] = current_file_hash
-            st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
-            historial = guardar_historial(parsed)
-            st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
+                if not hay_datos_utiles(parsed):
+                    reset_current_results()
+                    st.session_state["factura_anterior"] = None
+                    st.error("La IA no está disponible en este momento y no se han podido extraer datos útiles de la factura. Inténtalo de nuevo pasados unos minutos.")
+                    parsed = None
+                else:
+                    st.warning("La IA sigue saturada. Se ha usado un análisis básico local con los datos detectados en el PDF.")
+            if parsed is not None:
+                st.session_state["factura_actual"] = parsed
+                st.session_state["last_file_hash"] = current_file_hash
+                st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
+                historial = guardar_historial(parsed)
+                st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
         except Exception as e:
             st.error(f"No se pudo analizar la factura: {e}")
         finally:
