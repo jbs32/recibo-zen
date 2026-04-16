@@ -75,17 +75,28 @@ st.markdown(
     .spinner-dot { width:18px; height:18px; border-radius:50%; border:3px solid rgba(15,95,166,.18); border-top-color:var(--primary); animation:rzspin 1s linear infinite; }
     @keyframes rzspin { to { transform: rotate(360deg);} }
 
-    .stButton > button, .stDownloadButton > button, .stFileUploader button, [data-testid="stBaseButton-primary"], .stButton > button[kind="primary"] {
+    div.stButton > button, .stDownloadButton > button, .stFileUploader button, [data-testid="stBaseButton-primary"], .stButton > button[kind="primary"] {
         width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
         color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
         background:linear-gradient(180deg,var(--primary-2) 0%, var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
+        margin-top:0 !important; margin-bottom:0 !important;
     }
-    .stButton > button *, .stDownloadButton > button *, .stFileUploader button *, [data-testid="stBaseButton-primary"] *, .stButton > button[kind="primary"] * { color:#ffffff !important; fill:#ffffff !important; -webkit-text-fill-color:#ffffff !important; }
+    div.stButton > button *, .stDownloadButton > button *, .stFileUploader button *, [data-testid="stBaseButton-primary"] *, .stButton > button[kind="primary"] * { color:#ffffff !important; fill:#ffffff !important; -webkit-text-fill-color:#ffffff !important; }
 
-    .danger-btn button {
+    .listen-btn div.stButton > button {
+        background:linear-gradient(180deg,var(--primary-2) 0%, var(--primary) 100%) !important;
+        box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
+    }
+    .stop-btn div.stButton > button,
+    .danger-btn div.stButton > button {
         background:linear-gradient(180deg,var(--danger-2) 0%, var(--danger) 100%) !important;
         box-shadow:0 12px 28px rgba(179,52,59,.22) !important;
     }
+
+    .audio-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch; margin-top:.25rem; }
+    .audio-actions > div { min-width:0; }
+    .audio-actions .stButton { height:100%; }
+    .audio-actions .stButton > button { height:54px !important; }
 
     .stFileUploader section { background:#f8fbfe !important; border:2px dashed rgba(31,125,203,.22) !important; border-radius:24px !important; padding:1rem !important; }
     .stFileUploader small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] > div > small { display:none !important; }
@@ -94,13 +105,14 @@ st.markdown(
     .audio-panel { background:linear-gradient(180deg,#ffffff 0%, #f7fbff 100%); border:1px solid var(--line); border-radius:22px; padding:1rem; box-shadow:0 12px 22px rgba(18,48,70,.05); }
     .audio-title { font-family:'Manrope',sans-serif; font-size:1.05rem; font-weight:800; margin-bottom:.85rem; }
 
+    .history-table { overflow-x:auto; margin-top:.4rem; }
     .history-table table { width:100%; border-collapse:collapse; font-size:.93rem; background:#fff; overflow:hidden; border-radius:16px; }
     .history-table thead th { text-align:left; background:#f4f8fc; color:#123046; padding:.8rem .75rem; border-bottom:1px solid var(--line); font-weight:800; }
     .history-table tbody td { padding:.78rem .75rem; border-bottom:1px solid rgba(18,48,70,.08); color:#123046; }
     .history-table tbody tr:last-child td { border-bottom:none; }
     .history-note { margin-top:.55rem; color:var(--muted); font-size:.93rem; }
 
-    @media (max-width:700px){ .data-grid { grid-template-columns:1fr; } .history-table { overflow-x:auto; } }
+    @media (max-width:700px){ .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
     </style>
     """,
     unsafe_allow_html=True,
@@ -137,15 +149,54 @@ def preparar_audio(texto):
 def limpiar_numero(texto):
     if texto is None:
         return None
-    t = str(texto).strip().replace("€", "").replace("EUR", "").replace("kWh", "").replace("kW", "")
-    t = t.replace(".", "").replace(",", ".")
-    nums = re.findall(r"-?\d+(?:\.\d+)?", t)
-    if not nums:
+    t = str(texto).strip()
+    if not t:
         return None
+    t = t.replace("€", "").replace("EUR", "").replace("kWh", "").replace("kW", "")
+    t = t.replace(" ", "")
+    m = re.search(r"-?\d+[\.,]?\d*", t)
+    if not m:
+        return None
+    num = m.group(0)
+    if "," in num and "." in num:
+        if num.rfind(",") > num.rfind("."):
+            num = num.replace(".", "").replace(",", ".")
+        else:
+            num = num.replace(",", "")
+    elif "," in num:
+        num = num.replace(",", ".")
     try:
-        return float(nums[0])
+        return float(num)
     except Exception:
         return None
+
+
+def normalizar_compania(texto):
+    t = (texto or "").strip()
+    low = t.lower()
+    if any(x in low for x in ["visalia", "domestica gas y electricidad", "doméstica gas y electricidad"]):
+        return "Visalia"
+    if not t:
+        return "No detectada"
+    return re.sub(r"\s+", " ", t)
+
+
+def extraer_desde_pdf(texto_raw):
+    data = {}
+    patterns = {
+        "periodo": r"Periodo de facturaci[oó]n\s+([0-9]{2}[0-9/\- ]+[0-9]{2,4})",
+        "total_pagar": r"Total\s+([0-9]+,[0-9]{2})",
+        "consumo_kwh": r"Consumo total\s+([0-9]+,[0-9]{2})\s*kWh",
+        "potencia_kw": r"Potencia contratada[\s\S]{0,80}?([0-9]+,[0-9]{2})\s*kW",
+        "impuestos": r"IVA\s+([0-9]+,[0-9]{2})",
+    }
+    for key, pat in patterns.items():
+        m = re.search(pat, texto_raw, flags=re.IGNORECASE)
+        if m:
+            data[key] = m.group(1)
+    if re.search(r"visalia|dom[eé]stica gas y electricidad", texto_raw, flags=re.IGNORECASE):
+        data["compania"] = "Visalia"
+    return data
 
 
 def parsear_bloques(texto):
@@ -176,13 +227,26 @@ def parsear_bloques(texto):
             if key in keys and val:
                 resultado[dest] = val
                 break
+    resultado["compania"] = normalizar_compania(resultado.get("compania"))
     return resultado
+
+
+def combinar_datos(ia, pdf):
+    merged = ia.copy()
+    for key in ["periodo", "total_pagar", "consumo_kwh", "potencia_kw", "impuestos", "compania"]:
+        if pdf.get(key):
+            merged[key] = pdf[key]
+    merged["compania"] = normalizar_compania(merged.get("compania"))
+    return merged
 
 
 def cargar_historial():
     if os.path.exists(HISTORIAL_CSV):
         try:
-            return pd.read_csv(HISTORIAL_CSV)
+            df = pd.read_csv(HISTORIAL_CSV)
+            if "compania" in df.columns:
+                df["compania"] = df["compania"].apply(normalizar_compania)
+            return df
         except Exception:
             return pd.DataFrame()
     return pd.DataFrame()
@@ -192,6 +256,8 @@ def deduplicar_historial(df):
     if df.empty:
         return df
     tmp = df.copy()
+    if "compania" in tmp.columns:
+        tmp["compania"] = tmp["compania"].apply(normalizar_compania)
     tmp["_periodo_norm"] = tmp["periodo"].astype(str).str.strip().str.lower()
     tmp["_total_norm"] = pd.to_numeric(tmp["total_pagar"], errors="coerce").round(2)
     tmp = tmp.drop_duplicates(subset=["_periodo_norm", "_total_norm"], keep="first")
@@ -202,7 +268,7 @@ def guardar_historial(factura):
     fila = {
         "fecha_guardado": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "periodo": factura.get("periodo", "No detectado"),
-        "compania": factura.get("compania", "No detectada"),
+        "compania": normalizar_compania(factura.get("compania", "No detectada")),
         "total_pagar": limpiar_numero(factura.get("total_pagar")),
         "consumo_kwh": limpiar_numero(factura.get("consumo_kwh")),
         "potencia_kw": limpiar_numero(factura.get("potencia_kw")),
@@ -283,7 +349,7 @@ def render_history_table(df):
         html.append('<tr>')
         html.append(f'<td>{esc(row["fecha_guardado"])}</td>')
         html.append(f'<td>{esc(row["periodo"])}</td>')
-        html.append(f'<td>{esc(row["compania"])}</td>')
+        html.append(f'<td>{esc(normalizar_compania(row["compania"]))}</td>')
         html.append(f'<td>{fmt_euro(row["total_pagar"])}</td>')
         html.append(f'<td>{fmt_num(row["consumo_kwh"], "kWh")}</td>')
         html.append(f'<td>{fmt_num(row["potencia_kw"], "kW")}</td>')
@@ -309,6 +375,7 @@ if uploaded_file and analizar:
     try:
         time.sleep(0.35)
         texto_raw = leer_pdf(uploaded_file)
+        extraidos_pdf = extraer_desde_pdf(texto_raw)
         prompt = f"""
 Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
 Responde SOLO con líneas clave: valor.
@@ -323,12 +390,13 @@ explicacion_consumo:
 explicacion_potencia:
 explicacion_impuestos:
 guion_audio:
-Reglas: español de lectura fácil, frases muy cortas, sin markdown, tooltips más explicativos pero breves, guion_audio máximo 70 palabras.
+Reglas: español de lectura fácil, frases muy cortas, sin markdown, tooltips explicativos pero breves.
 Factura:
 {texto_raw[:12000]}
         """
         response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         parsed = parsear_bloques(response.text)
+        parsed = combinar_datos(parsed, extraidos_pdf)
         st.session_state["factura_actual"] = parsed
         st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
         historial = guardar_historial(parsed)
@@ -345,7 +413,7 @@ if factura:
     st.markdown(f'''
         <div class="data-grid">
             <div class="data-card"><div class="data-label">Periodo</div><div class="data-value">{esc(factura.get("periodo", "No detectado"))}</div></div>
-            <div class="data-card"><div class="data-label">Compañía</div><div class="data-value">{esc(factura.get("compania", "No detectada"))}</div></div>
+            <div class="data-card"><div class="data-label">Compañía</div><div class="data-value">{esc(normalizar_compania(factura.get("compania", "No detectada")))}</div></div>
         </div>
     ''', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -357,19 +425,21 @@ if factura:
         render_metric_card("Potencia contratada", fmt_num(factura.get("potencia_kw"), "kW"), factura.get("explicacion_potencia"), calcular_delta(factura.get("potencia_kw"), anterior.get("potencia_kw") if anterior else None, "kW") if anterior else None)
         render_metric_card("Impuestos", fmt_euro(factura.get("impuestos")), factura.get("explicacion_impuestos"), calcular_delta(factura.get("impuestos"), anterior.get("impuestos") if anterior else None, "€") if anterior else None)
 
-    st.markdown('<div class="audio-panel"><div class="audio-title">Escuchar resumen</div>', unsafe_allow_html=True)
-    a1, a2 = st.columns(2)
-    with a1:
-        if st.button("Escuchar", use_container_width=True):
+    st.markdown('<div class="audio-panel"><div class="audio-title">Escuchar resumen</div><div class="audio-actions">', unsafe_allow_html=True)
+    col_a, col_b = st.columns(2, gap="medium")
+    with col_a:
+        st.markdown('<div class="listen-btn">', unsafe_allow_html=True)
+        if st.button("Escuchar", key="btn_escuchar", use_container_width=True):
             st.session_state["reproducir"] = True
-    with a2:
-        st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
-        if st.button("Parar", use_container_width=True):
+        st.markdown('</div>', unsafe_allow_html=True)
+    with col_b:
+        st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
+        if st.button("Parar", key="btn_parar", use_container_width=True):
             st.session_state["reproducir"] = False
         st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     if st.session_state.get("reproducir") and st.session_state.get("audio_b64"):
         st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 hist = deduplicar_historial(cargar_historial())
 if not hist.empty:
@@ -380,7 +450,7 @@ if not hist.empty:
     st.markdown('<div class="history-note">Solo se guarda una vez cada factura si coincide el mismo periodo y el mismo importe total.</div>', unsafe_allow_html=True)
     st.download_button("Descargar historial facturas", data=hist.to_csv(index=False).encode("utf-8"), file_name="recibozen_historial.csv", mime="text/csv", use_container_width=True)
     st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
-    if st.button("Borrar historial", use_container_width=True):
+    if st.button("Borrar historial", key="btn_borrar_historial", use_container_width=True):
         if os.path.exists(HISTORIAL_CSV):
             os.remove(HISTORIAL_CSV)
         st.session_state["factura_anterior"] = None
