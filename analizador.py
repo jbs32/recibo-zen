@@ -44,7 +44,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
 }
 .block-container {
   max-width: 840px;
-  padding-top: 1.35rem;
+  padding-top: 2.2rem;
   padding-bottom: 3rem;
 }
 .rz-header, .panel {
@@ -56,7 +56,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
   margin-bottom: 1rem;
   overflow: visible;
 }
-.rz-header { margin-top: .35rem; }
+.rz-header { margin-top: .85rem; }
 .rz-header img { display:block; width:min(100%,360px); height:auto; }
 .section-title { font-family:'Manrope',sans-serif; font-size:1.12rem; font-weight:800; margin:0 0 .85rem 0; }
 .hint { margin-top:.6rem; color:var(--muted); font-size:.98rem; }
@@ -75,11 +75,34 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
 .spinner-card { display:flex; align-items:center; gap:.85rem; background:linear-gradient(180deg,#f5fbff 0%,#edf6ff 100%); border:1px solid rgba(15,95,166,.16); border-radius:18px; padding:1rem 1.05rem; margin-bottom:1rem; }
 .spinner-dot { width:18px; height:18px; border-radius:50%; border:3px solid rgba(15,95,166,.18); border-top-color:var(--primary); animation:rzspin 1s linear infinite; }
 @keyframes rzspin { to { transform:rotate(360deg); } }
-.stDownloadButton button, .stFileUploader button { width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important; background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important; }
-div.stButton > button, [data-testid="stBaseButton-primary"], .stButton button[kind="primary"] { width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important; border:none !important; margin-top:0 !important; margin-bottom:0 !important; }
-.listen-btn div.stButton button, .primary-btn div.stButton button { background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; }
-.stop-btn div.stButton button, .danger-btn div.stButton button { background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%) !important; box-shadow:0 12px 28px rgba(183,28,28,.28) !important; }
-button[data-testid="baseButton-btn_borrar_historial"] { background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%) !important; box-shadow:0 12px 28px rgba(183,28,28,.28) !important; color:#fff !important; -webkit-text-fill-color:#fff !important; }
+
+.stDownloadButton button, .stFileUploader button {
+  width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
+  color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
+  background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important;
+  box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important;
+}
+
+.stButton > button {
+  width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
+  color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
+  background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important;
+  box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important;
+}
+
+button[kind="primary"] {
+  background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important;
+  box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
+}
+
+button[data-testid="baseButton-btn_parar"],
+button[data-testid="baseButton-btn_borrar_historial"] {
+  background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%) !important;
+  box-shadow:0 12px 28px rgba(183,28,28,.28) !important;
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff !important;
+}
+
 .audio-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch; margin-top:.25rem; }
 .audio-actions div { min-width:0; }
 .audio-actions .stButton { height:100%; }
@@ -505,11 +528,11 @@ spinner_placeholder = st.empty()
 
 if uploaded_file and analizar:
     factura_visible = st.session_state.get("factura_actual")
-    ya_analizada = current_file_hash and factura_visible and st.session_state.get("last_file_hash") == current_file_hash
-    analisis_con_ia = ya_analizada and factura_visible.get("modelo_usado") not in [None, "modo_local_sin_ia"]
+    misma_factura = current_file_hash and factura_visible and st.session_state.get("last_file_hash") == current_file_hash
+    analisis_con_ia = misma_factura and factura_visible.get("modelo_usado") not in [None, "modo_local_sin_ia"]
 
     if analisis_con_ia:
-        st.info("Esta factura ya está analizada y visible en pantalla. No se ha vuelto a consultar a Gemini.")
+        st.info("Esta factura ya está analizada y visible en pantalla. No se ha vuelto a consultar a Gemini ni se ha duplicado el historial.")
     else:
         spinner_placeholder.markdown(
             """
@@ -596,15 +619,11 @@ if factura:
     st.markdown("<div class='audio-panel'><div class='audio-title'>Escuchar resumen</div><div class='audio-actions'>", unsafe_allow_html=True)
     cola, colb = st.columns(2, gap="medium")
     with cola:
-        st.markdown("<div class='listen-btn'>", unsafe_allow_html=True)
         if st.button("Escuchar", key="btn_escuchar", use_container_width=True):
             st.session_state["reproducir"] = True
-        st.markdown("</div>", unsafe_allow_html=True)
     with colb:
-        st.markdown("<div class='stop-btn'>", unsafe_allow_html=True)
         if st.button("Parar", key="btn_parar", use_container_width=True):
             st.session_state["reproducir"] = False
-        st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div></div>", unsafe_allow_html=True)
 
     if st.session_state.get("reproducir") and st.session_state.get("audio_b64"):
@@ -627,11 +646,10 @@ if not hist.empty:
         mime="text/csv",
         use_container_width=True,
     )
-    st.markdown("<div class='danger-btn'>", unsafe_allow_html=True)
     if st.button("Borrar historial", key="btn_borrar_historial", use_container_width=True):
         if os.path.exists(HISTORIAL_CSV):
             os.remove(HISTORIAL_CSV)
         st.session_state["factura_anterior"] = None
         st.success("Historial borrado correctamente.")
         st.rerun()
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
