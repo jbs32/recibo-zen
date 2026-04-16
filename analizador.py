@@ -176,14 +176,32 @@ def normalizar_periodo_corto(periodo):
     if not periodo or str(periodo).strip().lower() == "no detectado":
         return "No detectado"
     t = re.sub(r"\s+", " ", str(periodo)).strip()
-    m = re.findall(r"\d{2}/\d{2}/\d{2,4}", t)
+    m = re.findall(r"\d{1,2}/\d{1,2}/\d{2,4}", t)
     if len(m) >= 2:
-        a, b = m[0], m[1]
-        if len(a.split("/")[-1]) == 2:
-            a = a[:-2] + "20" + a[-2:]
-        if len(b.split("/")[-1]) == 2:
-            b = b[:-2] + "20" + b[-2:]
-        return f"{a} - {b}"
+        def norm_fecha(x):
+            d, mth, y = x.split("/")
+            if len(y) == 2:
+                y = "20" + y
+            return f"{int(d):02d}/{int(mth):02d}/{y}"
+        return f"{norm_fecha(m[0])} - {norm_fecha(m[1])}"
+
+    meses = {
+        'enero':'01','febrero':'02','marzo':'03','abril':'04','mayo':'05','junio':'06',
+        'julio':'07','agosto':'08','septiembre':'09','setiembre':'09','octubre':'10','noviembre':'11','diciembre':'12'
+    }
+    low = t.lower()
+    patron = r"(\d{1,2}) de ([a-záéíóú]+)(?: de (\d{4}))?"
+    fechas = re.findall(patron, low)
+    if len(fechas) >= 2:
+        year_final = fechas[-1][2] if fechas[-1][2] else ""
+        out = []
+        for i, (d, mes, y) in enumerate(fechas[:2]):
+            yy = y or year_final
+            mm = meses.get(mes, '01')
+            if yy:
+                out.append(f"{int(d):02d}/{mm}/{yy}")
+        if len(out) == 2:
+            return f"{out[0]} - {out[1]}"
     return t
 
 
@@ -500,22 +518,30 @@ def render_history_table(df):
         "potencia_kw": "col-potencia",
         "impuestos": "col-impuestos",
     }
-    html = ["<div class='history-table'><table><thead><tr>"]
-    for c in cols:
-        html.append(f"<th class='{clases[c]}'>{labels[c]}</th>")
-    html.append("</tr></thead><tbody>")
+    st.markdown("<div class='history-table'><table><thead><tr>" + "".join([f"<th class='{clases[c]}'>{labels[c]}</th>" for c in cols]) + "</tr></thead><tbody>", unsafe_allow_html=True)
     for idx, row in df.iterrows():
-        html.append("<tr>")
-        html.append(f"<td class='{clases['fecha_guardado']}'><button class='row-action' name='cargar_hist_{idx}'>{esc(fmt_fecha_corta(row['fecha_guardado']))}</button></td>")
-        html.append(f"<td class='{clases['periodo']}'>{esc(normalizar_periodo_corto(row['periodo']))}</td>")
-        html.append(f"<td class='{clases['compania']}'>{esc(normalizar_compania(row['compania']))}</td>")
-        html.append(f"<td class='{clases['total_pagar']}'>{esc(fmt_euro(row['total_pagar']))}</td>")
-        html.append(f"<td class='{clases['consumo_kwh']}'>{esc(fmt_num(row['consumo_kwh'], 'kWh'))}</td>")
-        html.append(f"<td class='{clases['potencia_kw']}'>{esc(fmt_num(row['potencia_kw'], 'kW'))}</td>")
-        html.append(f"<td class='{clases['impuestos']}'>{esc(fmt_euro(row['impuestos']))}</td>")
-        html.append("</tr>")
-    html.append("</tbody></table></div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
+        c1, c2, c3, c4, c5, c6, c7 = st.columns([1.15, 2.1, 1.1, 1.15, 1.15, 1.0, 1.0])
+        with c1:
+            if st.button(fmt_fecha_corta(row['fecha_guardado']), key=f"hist_fecha_{idx}", use_container_width=True):
+                factura_cargada = fila_historial_a_factura(row.to_dict())
+                st.session_state["factura_actual"] = factura_cargada
+                st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
+                st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
+                st.session_state["factura_anterior"] = None
+                st.rerun()
+        with c2:
+            st.markdown(normalizar_periodo_corto(row['periodo']))
+        with c3:
+            st.markdown(normalizar_compania(row['compania']))
+        with c4:
+            st.markdown(fmt_euro(row['total_pagar']))
+        with c5:
+            st.markdown(fmt_num(row['consumo_kwh'], 'kWh'))
+        with c6:
+            st.markdown(fmt_num(row['potencia_kw'], 'kW'))
+        with c7:
+            st.markdown(fmt_euro(row['impuestos']))
+    st.markdown("</tbody></table></div>", unsafe_allow_html=True)
 
 
 init_state()
@@ -587,7 +613,7 @@ if uploaded_file and analizar:
                 st.error("La IA no está disponible en este momento. Revisa tu cuota o vuelve a intentarlo más tarde.")
                 st.caption(error_txt)
             elif "ERROR_IA:" in error_txt:
-                st.error("La IA no ha podido responder correctamente.")
+                st.error("La IA no ha podido responder correctamente. Reinténtalo en unos minutos.")
                 st.caption(error_txt)
             else:
                 st.error("No se pudo analizar la factura por un error inesperado.")
@@ -663,16 +689,6 @@ if not hist.empty:
         hist.to_csv(HISTORIAL_CSV, index=False)
     hist_sorted = hist.sort_values("fecha_guardado", ascending=False).reset_index(drop=True)
     st.markdown("<div class='panel'><div class='section-title'>Historial de facturas guardadas</div>", unsafe_allow_html=True)
-
-    for idx, row in hist_sorted.iterrows():
-        if st.button(f"Cargar factura {fmt_fecha_corta(row['fecha_guardado'])} · {normalizar_compania(row['compania'])}", key=f"hist_btn_{idx}", use_container_width=True):
-            factura_cargada = fila_historial_a_factura(row.to_dict())
-            st.session_state["factura_actual"] = factura_cargada
-            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
-            st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
-            st.session_state["factura_anterior"] = None
-            st.rerun()
-
     render_history_table(hist_sorted)
     st.markdown("<div class='history-note'>Al analizar una factura, se guarda toda su información para poder recuperarla desde el historial sin volver a consumir la API.</div>", unsafe_allow_html=True)
     st.download_button(
