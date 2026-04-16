@@ -24,9 +24,7 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap');
     :root {
-        --bg: #eef5fb;
         --surface: rgba(255,255,255,.96);
-        --surface-2: #ffffff;
         --line: rgba(18,48,70,.12);
         --text: #123046;
         --muted: #486171;
@@ -53,90 +51,56 @@ st.markdown(
     .rz-header img { display:block; width:min(100%,360px); height:auto; }
     .section-title { font-family:'Manrope',sans-serif; font-size:1.12rem; font-weight:800; margin:0 0 .85rem 0; }
     .hint { margin-top:.6rem; color:var(--muted); font-size:.98rem; }
-    .data-grid, .metric-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
-    .data-card, .metric-card {
-        background:#fff; border:1px solid var(--line); border-radius:20px; padding:1rem 1rem .95rem;
-        box-shadow:0 8px 20px rgba(18,48,70,.05);
-    }
+    .data-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
+    .data-card, .metric-card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:1rem .95rem; box-shadow:0 8px 20px rgba(18,48,70,.05); }
     .data-label, .metric-label { font-size:.92rem; color:var(--muted); margin-bottom:.28rem; }
     .data-value { font-size:1.05rem; font-weight:700; color:var(--text); }
     .metric-head { display:flex; align-items:center; gap:.45rem; margin-bottom:.35rem; }
-    .metric-label { margin:0; color:var(--text); }
     .metric-value { font-size:2rem; line-height:1.05; font-weight:800; color:var(--text); letter-spacing:-.02em; }
     .metric-delta { margin-top:.45rem; color:var(--muted); font-size:.92rem; font-weight:600; }
     .tooltip-wrap { position:relative; display:inline-flex; align-items:center; }
     .tooltip-icon {
-        display:inline-flex; align-items:center; justify-content:center;
-        width:22px; height:22px; border-radius:999px; border:1px solid rgba(15,95,166,.24);
-        background:#eef6ff; color:var(--primary); font-size:.82rem; font-weight:800; cursor:help;
+        display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px;
+        border:1px solid rgba(15,95,166,.24); background:#eef6ff; color:var(--primary); font-size:.82rem; font-weight:800; cursor:help;
         box-shadow:0 3px 8px rgba(15,95,166,.08);
     }
     .tooltip-bubble {
-        position:absolute; left:0; top:calc(100% + 8px); width:min(260px, 76vw); z-index:60;
-        background:#123046; color:#ffffff !important; padding:.85rem .95rem; border-radius:14px;
-        box-shadow:0 16px 32px rgba(18,48,70,.22); font-size:.92rem; line-height:1.42;
-        opacity:0; visibility:hidden; transform:translateY(4px); transition:all .16s ease;
-        pointer-events:none; font-weight:500;
+        position:absolute; left:0; top:calc(100% + 8px); width:min(290px, 78vw); z-index:60;
+        background:#123046; color:#ffffff !important; padding:.9rem 1rem; border-radius:14px; box-shadow:0 16px 32px rgba(18,48,70,.22);
+        font-size:.93rem; line-height:1.46; opacity:0; visibility:hidden; transform:translateY(4px); transition:all .16s ease; pointer-events:none;
     }
-    .tooltip-wrap:hover .tooltip-bubble,
-    .tooltip-wrap:focus-within .tooltip-bubble,
-    .tooltip-wrap:active .tooltip-bubble {
-        opacity:1; visibility:visible; transform:translateY(0);
-    }
-    .tooltip-bubble::before {
-        content:""; position:absolute; top:-6px; left:12px; width:12px; height:12px;
-        background:#123046; transform:rotate(45deg);
-    }
-    .spinner-card {
-        display:flex; align-items:center; gap:.85rem; background:linear-gradient(180deg,#f5fbff 0%,#edf6ff 100%);
-        border:1px solid rgba(15,95,166,.16); border-radius:18px; padding:1rem 1.05rem; margin-bottom:1rem;
-    }
+    .tooltip-wrap:hover .tooltip-bubble, .tooltip-wrap:focus-within .tooltip-bubble, .tooltip-wrap:active .tooltip-bubble { opacity:1; visibility:visible; transform:translateY(0); }
+    .tooltip-bubble::before { content:""; position:absolute; top:-6px; left:12px; width:12px; height:12px; background:#123046; transform:rotate(45deg); }
+    .spinner-card { display:flex; align-items:center; gap:.85rem; background:linear-gradient(180deg,#f5fbff 0%,#edf6ff 100%); border:1px solid rgba(15,95,166,.16); border-radius:18px; padding:1rem 1.05rem; margin-bottom:1rem; }
     .spinner-dot { width:18px; height:18px; border-radius:50%; border:3px solid rgba(15,95,166,.18); border-top-color:var(--primary); animation:rzspin 1s linear infinite; }
     @keyframes rzspin { to { transform: rotate(360deg);} }
 
     .stButton > button, .stDownloadButton > button, .stFileUploader button, [data-testid="stBaseButton-primary"], .stButton > button[kind="primary"] {
         width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
         color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
-        background:linear-gradient(180deg,var(--primary-2) 0%, var(--primary) 100%) !important; border:none !important;
-        box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
+        background:linear-gradient(180deg,var(--primary-2) 0%, var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
     }
-    .stButton > button *, .stDownloadButton > button *, .stFileUploader button *, [data-testid="stBaseButton-primary"] *, .stButton > button[kind="primary"] * {
-        color:#ffffff !important; fill:#ffffff !important; -webkit-text-fill-color:#ffffff !important;
-    }
+    .stButton > button *, .stDownloadButton > button *, .stFileUploader button *, [data-testid="stBaseButton-primary"] *, .stButton > button[kind="primary"] * { color:#ffffff !important; fill:#ffffff !important; -webkit-text-fill-color:#ffffff !important; }
 
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) .stButton > button,
-    div[data-testid="stVerticalBlock"] div[data-testid="stButton"]:last-child > button[data-testid="stBaseButton-secondary"] {
+    .danger-btn button {
         background:linear-gradient(180deg,var(--danger-2) 0%, var(--danger) 100%) !important;
         box-shadow:0 12px 28px rgba(179,52,59,.22) !important;
     }
 
     .stFileUploader section { background:#f8fbfe !important; border:2px dashed rgba(31,125,203,.22) !important; border-radius:24px !important; padding:1rem !important; }
     .stFileUploader small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] > div > small { display:none !important; }
-    .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child,
-    .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] svg {
-        display:none !important;
-    }
+    .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] svg { display:none !important; }
 
-    .audio-panel {
-        background:linear-gradient(180deg,#ffffff 0%, #f7fbff 100%); border:1px solid var(--line); border-radius:22px; padding:1rem;
-        box-shadow:0 12px 22px rgba(18,48,70,.05);
-    }
+    .audio-panel { background:linear-gradient(180deg,#ffffff 0%, #f7fbff 100%); border:1px solid var(--line); border-radius:22px; padding:1rem; box-shadow:0 12px 22px rgba(18,48,70,.05); }
     .audio-title { font-family:'Manrope',sans-serif; font-size:1.05rem; font-weight:800; margin-bottom:.85rem; }
 
-    .history-shell {
-        background:#ffffff; border:1px solid var(--line); border-radius:18px; padding:.8rem; box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
-    }
-    .history-title-mini { font-size:.92rem; font-weight:800; color:var(--text); margin:0 0 .6rem 0; }
+    .history-table table { width:100%; border-collapse:collapse; font-size:.93rem; background:#fff; overflow:hidden; border-radius:16px; }
+    .history-table thead th { text-align:left; background:#f4f8fc; color:#123046; padding:.8rem .75rem; border-bottom:1px solid var(--line); font-weight:800; }
+    .history-table tbody td { padding:.78rem .75rem; border-bottom:1px solid rgba(18,48,70,.08); color:#123046; }
+    .history-table tbody tr:last-child td { border-bottom:none; }
+    .history-note { margin-top:.55rem; color:var(--muted); font-size:.93rem; }
 
-    [data-testid="stDataFrame"] {
-        background:#ffffff !important; border-radius:14px !important; border:1px solid var(--line) !important;
-        overflow:hidden !important;
-    }
-    [data-testid="stDataFrame"] * {
-        color:#123046 !important;
-    }
-
-    @media (max-width:700px){ .data-grid, .metric-grid { grid-template-columns:1fr; } }
+    @media (max-width:700px){ .data-grid { grid-template-columns:1fr; } .history-table { overflow-x:auto; } }
     </style>
     """,
     unsafe_allow_html=True,
@@ -188,10 +152,10 @@ def parsear_bloques(texto):
     resultado = {
         "periodo": "No detectado", "compania": "No detectada", "total_pagar": "No detectado",
         "consumo_kwh": "No detectado", "potencia_kw": "No detectado", "impuestos": "No detectado",
-        "explicacion_total": "Es el importe final que pagas este mes.",
-        "explicacion_consumo": "Es la energía que has usado durante este periodo.",
-        "explicacion_potencia": "Es la parte fija que pagas por la potencia contratada.",
-        "explicacion_impuestos": "Son los impuestos y cargos añadidos a la factura.",
+        "explicacion_total": "Es el importe final que pagas este mes. Aquí ya está sumado lo que has consumido, la parte fija y los impuestos.",
+        "explicacion_consumo": "Es la energía que has usado durante este periodo. Si sube mucho, normalmente significa que has gastado más electricidad.",
+        "explicacion_potencia": "Es la parte fija de la factura. La pagas aunque consumas poco, porque depende de la potencia que tienes contratada en casa.",
+        "explicacion_impuestos": "Son los impuestos y cargos añadidos a la factura. No dependen solo de lo que consumes, también influyen normas y peajes.",
         "guion_audio": "Hola. Aquí tienes un resumen sencillo de tu factura.",
     }
     aliases = {
@@ -224,6 +188,16 @@ def cargar_historial():
     return pd.DataFrame()
 
 
+def deduplicar_historial(df):
+    if df.empty:
+        return df
+    tmp = df.copy()
+    tmp["_periodo_norm"] = tmp["periodo"].astype(str).str.strip().str.lower()
+    tmp["_total_norm"] = pd.to_numeric(tmp["total_pagar"], errors="coerce").round(2)
+    tmp = tmp.drop_duplicates(subset=["_periodo_norm", "_total_norm"], keep="first")
+    return tmp.drop(columns=["_periodo_norm", "_total_norm"], errors="ignore")
+
+
 def guardar_historial(factura):
     fila = {
         "fecha_guardado": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -236,6 +210,7 @@ def guardar_historial(factura):
     }
     df_prev = cargar_historial()
     df_new = pd.concat([df_prev, pd.DataFrame([fila])], ignore_index=True)
+    df_new = deduplicar_historial(df_new)
     df_new.to_csv(HISTORIAL_CSV, index=False)
     return df_new
 
@@ -288,8 +263,37 @@ def render_metric_card(label, value, tooltip, delta=None):
     )
 
 
-init_state()
+def render_history_table(df):
+    cols = ["fecha_guardado", "periodo", "compania", "total_pagar", "consumo_kwh", "potencia_kw", "impuestos"]
+    labels = {
+        "fecha_guardado": "Fecha",
+        "periodo": "Periodo",
+        "compania": "Compañía",
+        "total_pagar": "Total",
+        "consumo_kwh": "Consumo",
+        "potencia_kw": "Potencia",
+        "impuestos": "Impuestos",
+    }
+    show = df[cols].copy()
+    html = ['<div class="history-table"><table><thead><tr>']
+    for c in cols:
+        html.append(f'<th>{labels[c]}</th>')
+    html.append('</tr></thead><tbody>')
+    for _, row in show.iterrows():
+        html.append('<tr>')
+        html.append(f'<td>{esc(row["fecha_guardado"])}</td>')
+        html.append(f'<td>{esc(row["periodo"])}</td>')
+        html.append(f'<td>{esc(row["compania"])}</td>')
+        html.append(f'<td>{fmt_euro(row["total_pagar"])}</td>')
+        html.append(f'<td>{fmt_num(row["consumo_kwh"], "kWh")}</td>')
+        html.append(f'<td>{fmt_num(row["potencia_kw"], "kW")}</td>')
+        html.append(f'<td>{fmt_euro(row["impuestos"])}</td>')
+        html.append('</tr>')
+    html.append('</tbody></table></div>')
+    st.markdown(''.join(html), unsafe_allow_html=True)
 
+
+init_state()
 st.markdown(f'<div class="rz-header"><img src="{LOGO_DATA_URI}" alt="ReciboZen"></div>', unsafe_allow_html=True)
 st.markdown('<div class="panel"><div class="section-title">Sube tu factura</div>', unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Sube tu factura", label_visibility="collapsed", type=["pdf"])
@@ -319,7 +323,7 @@ explicacion_consumo:
 explicacion_potencia:
 explicacion_impuestos:
 guion_audio:
-Reglas: español de lectura fácil, frases muy cortas, sin markdown, guion_audio máximo 70 palabras.
+Reglas: español de lectura fácil, frases muy cortas, sin markdown, tooltips más explicativos pero breves, guion_audio máximo 70 palabras.
 Factura:
 {texto_raw[:12000]}
         """
@@ -359,23 +363,27 @@ if factura:
         if st.button("Escuchar", use_container_width=True):
             st.session_state["reproducir"] = True
     with a2:
+        st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
         if st.button("Parar", use_container_width=True):
             st.session_state["reproducir"] = False
+        st.markdown('</div>', unsafe_allow_html=True)
     if st.session_state.get("reproducir") and st.session_state.get("audio_b64"):
         st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
     st.markdown('</div>', unsafe_allow_html=True)
 
-hist = cargar_historial()
+hist = deduplicar_historial(cargar_historial())
 if not hist.empty:
-    st.markdown('<div class="panel"><div class="section-title">Historial</div><div class="history-shell"><div class="history-title-mini">Facturas guardadas</div>', unsafe_allow_html=True)
-    styled = hist.sort_index(ascending=False).style.set_properties(**{'background-color': 'white', 'color': '#123046', 'border-color': 'rgba(18,48,70,.08)'})
-    st.dataframe(styled, use_container_width=True, hide_index=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    if os.path.exists(HISTORIAL_CSV):
+        hist.to_csv(HISTORIAL_CSV, index=False)
+    st.markdown('<div class="panel"><div class="section-title">Historial de facturas guardadas</div>', unsafe_allow_html=True)
+    render_history_table(hist.sort_values("fecha_guardado", ascending=False))
+    st.markdown('<div class="history-note">Solo se guarda una vez cada factura si coincide el mismo periodo y el mismo importe total.</div>', unsafe_allow_html=True)
     st.download_button("Descargar historial facturas", data=hist.to_csv(index=False).encode("utf-8"), file_name="recibozen_historial.csv", mime="text/csv", use_container_width=True)
+    st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
     if st.button("Borrar historial", use_container_width=True):
         if os.path.exists(HISTORIAL_CSV):
             os.remove(HISTORIAL_CSV)
         st.session_state["factura_anterior"] = None
         st.success("Historial borrado correctamente.")
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
