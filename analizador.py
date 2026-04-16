@@ -10,7 +10,7 @@ import re
 import time
 from datetime import datetime
 
-st.set_page_config(page_title="ReciboZen", page_icon="ðŸ§¾", layout="centered")
+st.set_page_config(page_title="ReciboZen", page_icon="🧾", layout="centered")
 
 HISTORIAL_CSV = "recibozen_historial.csv"
 API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
@@ -152,7 +152,7 @@ def limpiar_numero(texto):
     t = str(texto).strip()
     if not t:
         return None
-    t = t.replace("â‚¬", "").replace("EUR", "").replace("kWh", "").replace("kW", "")
+    t = t.replace("€", "").replace("EUR", "").replace("kWh", "").replace("kW", "")
     t = t.replace(" ", "")
     m = re.search(r"-?\d+[\.,]?\d*", t)
     if not m:
@@ -174,7 +174,7 @@ def limpiar_numero(texto):
 def normalizar_compania(texto):
     t = (texto or "").strip()
     low = t.lower()
-    if any(x in low for x in ["visalia", "domestica gas y electricidad", "domÃ©stica gas y electricidad"]):
+    if any(x in low for x in ["visalia", "domestica gas y electricidad", "doméstica gas y electricidad"]):
         return "Visalia"
     if not t:
         return "No detectada"
@@ -184,7 +184,7 @@ def normalizar_compania(texto):
 def extraer_desde_pdf(texto_raw):
     data = {}
     patterns = {
-        "periodo": r"Periodo de facturaci[oÃ³]n\s+([0-9]{2}[0-9/\- ]+[0-9]{2,4})",
+        "periodo": r"Periodo de facturaci[oó]n\s+([0-9]{2}[0-9/\- ]+[0-9]{2,4})",
         "total_pagar": r"Total\s+([0-9]+,[0-9]{2})",
         "consumo_kwh": r"Consumo total\s+([0-9]+,[0-9]{2})\s*kWh",
         "potencia_kw": r"Potencia contratada[\s\S]{0,80}?([0-9]+,[0-9]{2})\s*kW",
@@ -194,7 +194,7 @@ def extraer_desde_pdf(texto_raw):
         m = re.search(pat, texto_raw, flags=re.IGNORECASE)
         if m:
             data[key] = m.group(1)
-    if re.search(r"visalia|dom[eÃ©]stica gas y electricidad", texto_raw, flags=re.IGNORECASE):
+    if re.search(r"visalia|dom[eé]stica gas y electricidad", texto_raw, flags=re.IGNORECASE):
         data["compania"] = "Visalia"
     return data
 
@@ -203,14 +203,14 @@ def parsear_bloques(texto):
     resultado = {
         "periodo": "No detectado", "compania": "No detectada", "total_pagar": "No detectado",
         "consumo_kwh": "No detectado", "potencia_kw": "No detectado", "impuestos": "No detectado",
-        "explicacion_total": "Es el importe final que pagas este mes. AquÃ­ ya estÃ¡ sumado lo que has consumido, la parte fija y los impuestos.",
-        "explicacion_consumo": "Es la energÃ­a que has usado durante este periodo. Si sube mucho, normalmente significa que has gastado mÃ¡s electricidad.",
+        "explicacion_total": "Es el importe final que pagas este mes. Aquí ya está sumado lo que has consumido, la parte fija y los impuestos.",
+        "explicacion_consumo": "Es la energía que has usado durante este periodo. Si sube mucho, normalmente significa que has gastado más electricidad.",
         "explicacion_potencia": "Es la parte fija de la factura. La pagas aunque consumas poco, porque depende de la potencia que tienes contratada en casa.",
-        "explicacion_impuestos": "Son los impuestos y cargos aÃ±adidos a la factura. No dependen solo de lo que consumes, tambiÃ©n influyen normas y peajes.",
-        "guion_audio": "Hola. AquÃ­ tienes un resumen sencillo de tu factura.",
+        "explicacion_impuestos": "Son los impuestos y cargos añadidos a la factura. No dependen solo de lo que consumes, también influyen normas y peajes.",
+        "guion_audio": "Hola. Aquí tienes un resumen sencillo de tu factura.",
     }
     aliases = {
-        "periodo": ["periodo", "periodo_factura"], "compania": ["compania", "compaÃ±ia", "empresa", "comercializadora"],
+        "periodo": ["periodo", "periodo_factura"], "compania": ["compania", "compañia", "empresa", "comercializadora"],
         "total_pagar": ["total", "total_pagar", "importe_total"], "consumo_kwh": ["consumo", "consumo_kwh"],
         "potencia_kw": ["potencia", "potencia_kw"], "impuestos": ["impuestos"],
         "explicacion_total": ["explicacion_total"], "explicacion_consumo": ["explicacion_consumo"],
@@ -285,7 +285,7 @@ def fmt_euro(valor):
     n = limpiar_numero(valor)
     if n is None:
         return "No detectado"
-    return f"{n:,.2f} â‚¬".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{n:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def fmt_num(valor, sufijo=""):
@@ -295,7 +295,7 @@ def fmt_num(valor, sufijo=""):
     return f"{n:,.2f} {sufijo}".replace(",", "X").replace(".", ",").replace("X", ".").strip()
 
 
-def calcular_delta(actual, previo, sufijo="â‚¬"):
+def calcular_delta(actual, previo, sufijo="€"):
     a = limpiar_numero(actual)
     b = limpiar_numero(previo)
     if a is None or b is None:
@@ -316,7 +316,7 @@ def render_metric_card(label, value, tooltip, delta=None):
         <div class="metric-card">
             <div class="metric-head">
                 <div class="metric-label">{esc(label)}</div>
-                <div class="tooltip-wrap" tabindex="0" aria-label="MÃ¡s informaciÃ³n sobre {esc(label)}">
+                <div class="tooltip-wrap" tabindex="0" aria-label="Más información sobre {esc(label)}">
                     <span class="tooltip-icon">?</span>
                     <div class="tooltip-bubble">{esc(tooltip)}</div>
                 </div>
@@ -334,7 +334,7 @@ def render_history_table(df):
     labels = {
         "fecha_guardado": "Fecha",
         "periodo": "Periodo",
-        "compania": "CompaÃ±Ã­a",
+        "compania": "Compañía",
         "total_pagar": "Total",
         "consumo_kwh": "Consumo",
         "potencia_kw": "Potencia",
@@ -371,14 +371,14 @@ st.markdown('<div class="hint">Sube un PDF de tu factura para analizarlo.</div><
 analizar = st.button("Analizar factura", type="primary", use_container_width=True)
 spinner_placeholder = st.empty()
 if uploaded_file and analizar:
-    spinner_placeholder.markdown('<div class="spinner-card"><div class="spinner-dot"></div><div><strong>Analizando facturaâ€¦</strong><div style="color:#486171;margin-top:.15rem;">Esto puede tardar unos segundos.</div></div></div>', unsafe_allow_html=True)
+    spinner_placeholder.markdown('<div class="spinner-card"><div class="spinner-dot"></div><div><strong>Analizando factura…</strong><div style="color:#486171;margin-top:.15rem;">Esto puede tardar unos segundos.</div></div></div>', unsafe_allow_html=True)
     try:
         time.sleep(0.35)
         texto_raw = leer_pdf(uploaded_file)
         extraidos_pdf = extraer_desde_pdf(texto_raw)
         prompt = f"""
-Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con tÃ©rminos energÃ©ticos.
-Responde SOLO con lÃ­neas clave: valor.
+Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
+Responde SOLO con líneas clave: valor.
 periodo:
 compania:
 total_pagar:
@@ -390,7 +390,7 @@ explicacion_consumo:
 explicacion_potencia:
 explicacion_impuestos:
 guion_audio:
-Reglas: espaÃ±ol de lectura fÃ¡cil, frases muy cortas, sin markdown, tooltips explicativos pero breves.
+Reglas: español de lectura fácil, frases muy cortas, sin markdown, tooltips explicativos pero breves.
 Factura:
 {texto_raw[:12000]}
         """
@@ -413,17 +413,17 @@ if factura:
     st.markdown(f'''
         <div class="data-grid">
             <div class="data-card"><div class="data-label">Periodo</div><div class="data-value">{esc(factura.get("periodo", "No detectado"))}</div></div>
-            <div class="data-card"><div class="data-label">CompaÃ±Ã­a</div><div class="data-value">{esc(normalizar_compania(factura.get("compania", "No detectada")))}</div></div>
+            <div class="data-card"><div class="data-label">Compañía</div><div class="data-value">{esc(normalizar_compania(factura.get("compania", "No detectada")))}</div></div>
         </div>
     ''', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        render_metric_card("Total a pagar", fmt_euro(factura.get("total_pagar")), factura.get("explicacion_total"), calcular_delta(factura.get("total_pagar"), anterior.get("total_pagar") if anterior else None, "â‚¬") if anterior else None)
+        render_metric_card("Total a pagar", fmt_euro(factura.get("total_pagar")), factura.get("explicacion_total"), calcular_delta(factura.get("total_pagar"), anterior.get("total_pagar") if anterior else None, "€") if anterior else None)
         render_metric_card("Consumo", fmt_num(factura.get("consumo_kwh"), "kWh"), factura.get("explicacion_consumo"), calcular_delta(factura.get("consumo_kwh"), anterior.get("consumo_kwh") if anterior else None, "kWh") if anterior else None)
     with c2:
         render_metric_card("Potencia contratada", fmt_num(factura.get("potencia_kw"), "kW"), factura.get("explicacion_potencia"), calcular_delta(factura.get("potencia_kw"), anterior.get("potencia_kw") if anterior else None, "kW") if anterior else None)
-        render_metric_card("Impuestos", fmt_euro(factura.get("impuestos")), factura.get("explicacion_impuestos"), calcular_delta(factura.get("impuestos"), anterior.get("impuestos") if anterior else None, "â‚¬") if anterior else None)
+        render_metric_card("Impuestos", fmt_euro(factura.get("impuestos")), factura.get("explicacion_impuestos"), calcular_delta(factura.get("impuestos"), anterior.get("impuestos") if anterior else None, "€") if anterior else None)
 
     st.markdown('<div class="audio-panel"><div class="audio-title">Escuchar resumen</div><div class="audio-actions">', unsafe_allow_html=True)
     col_a, col_b = st.columns(2, gap="medium")
