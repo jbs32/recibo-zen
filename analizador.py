@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import re
 import time
+import hashlib
 from datetime import datetime
 
 st.set_page_config(page_title="ReciboZen", page_icon="🧾", layout="centered")
@@ -17,215 +18,291 @@ API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
 if not API_KEY:
     st.error("Falta configurar GOOGLE_API_KEY en Streamlit Secrets.")
     st.stop()
+
 client = genai.Client(api_key=API_KEY)
-
-
-MODELOS_ANALISIS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-]
-
-
-def es_error_temporal_modelo(error):
-    msg = str(error).upper()
-    patrones = [
-        "503",
-        "UNAVAILABLE",
-        "HIGH DEMAND",
-        "RESOURCE_EXHAUSTED",
-        "DEADLINE_EXCEEDED",
-        "SERVICE UNAVAILABLE",
-        "TOO MANY REQUESTS",
-        "429",
-    ]
-    return any(p in msg for p in patrones)
-
-
-def construir_prompt(texto_raw):
-    return f"""
-Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
-
-Responde SOLO con líneas clave: valor.
-
-periodo:
-compania:
-total_pagar:
-consumo_kwh:
-potencia_kw:
-impuestos:
-explicacion_total:
-explicacion_consumo:
-explicacion_potencia:
-explicacion_impuestos:
-guion_audio:
-
-Reglas:
-- español de lectura fácil
-- frases muy cortas
-- sin markdown
-- tooltips explicativos pero breves
-- si no ves un dato, escribe No detectado
-
-Factura:
-{texto_raw[:12000]}
-"""
-
-
-def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
-    modelos = modelos or MODELOS_ANALISIS
-    status = st.empty()
-    ultimo_error = None
-
-    for modelo in modelos:
-        for intento in range(reintentos_por_modelo):
-            try:
-                status.markdown(
-                    f"<div class='hint'>Analizando con IA ({modelo})...</div>",
-                    unsafe_allow_html=True,
-                )
-                response = client.models.generate_content(
-                    model=modelo,
-                    contents=prompt,
-                )
-                status.empty()
-                return response, modelo
-            except Exception as e:
-                ultimo_error = e
-                if not es_error_temporal_modelo(e):
-                    status.empty()
-                    raise
-                espera = min(2 ** intento, 6)
-                status.markdown(
-                    f"<div class='hint'>Servicio saturado en {modelo}. Reintentando en {espera} s...</div>",
-                    unsafe_allow_html=True,
-                )
-                time.sleep(espera)
-
-    status.empty()
-    raise RuntimeError(f"No fue posible analizar con IA en este momento. {ultimo_error}")
-
-
-def construir_respuesta_local(extraidos_pdf):
-    periodo = extraidos_pdf.get("periodo", "No detectado")
-    compania = normalizar_compania(extraidos_pdf.get("compania", "No detectada"))
-    total_pagar = extraidos_pdf.get("total_pagar", "No detectado")
-    consumo_kwh = extraidos_pdf.get("consumo_kwh", "No detectado")
-    potencia_kw = extraidos_pdf.get("potencia_kw", "No detectado")
-    impuestos = extraidos_pdf.get("impuestos", "No detectado")
-
-    lineas = [
-        f"periodo: {periodo}",
-        f"compania: {compania}",
-        f"total_pagar: {total_pagar}",
-        f"consumo_kwh: {consumo_kwh}",
-        f"potencia_kw: {potencia_kw}",
-        f"impuestos: {impuestos}",
-        "explicacion_total: Es el importe final que pagas este mes. Incluye consumo, parte fija e impuestos.",
-        "explicacion_consumo: Es la energía que has usado en este periodo. Si sube, normalmente has consumido más.",
-        "explicacion_potencia: Es la parte fija de la factura. La pagas aunque consumas poco.",
-        "explicacion_impuestos: Son impuestos y cargos añadidos al importe final.",
-        f"guion_audio: Hola. Esta factura es de {compania}. El periodo es {periodo}. El total a pagar es {total_pagar} euros. El consumo es {consumo_kwh} kilovatios hora. La potencia contratada es {potencia_kw} kilovatios. Los impuestos son {impuestos} euros.",
-    ]
-    return "\n".join(lineas)
-
+MODELOS_ANALISIS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
 st.markdown(
     """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap');
-    :root {
-        --surface: rgba(255,255,255,.96);
-        --line: rgba(18,48,70,.12);
-        --text: #123046;
-        --muted: #486171;
-        --primary: #0f5fa6;
-        --primary-2: #1f7dcb;
-        --danger: #b3343b;
-        --danger-2: #d94b52;
-        --shadow: 0 14px 34px rgba(18,48,70,.08);
-    }
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-        background: linear-gradient(180deg, #f3f8fc 0%, #eef5fb 100%) !important;
-        color: var(--text) !important;
-        font-family: 'Inter', sans-serif !important;
-    }
-    .block-container { max-width: 840px; padding-top: .6rem; padding-bottom: 3rem; }
-    .rz-header, .panel {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        box-shadow: var(--shadow);
-        border-radius: 24px;
-        padding: 1.15rem;
-        margin-bottom: 1rem;
-    }
-    .rz-header img { display:block; width:min(100%,360px); height:auto; }
-    .section-title { font-family:'Manrope',sans-serif; font-size:1.12rem; font-weight:800; margin:0 0 .85rem 0; }
-    .hint { margin-top:.6rem; color:var(--muted); font-size:.98rem; }
-    .data-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
-    .data-card, .metric-card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:1rem .95rem; box-shadow:0 8px 20px rgba(18,48,70,.05); }
-    .data-label, .metric-label { font-size:.92rem; color:var(--muted); margin-bottom:.28rem; }
-    .data-value { font-size:1.05rem; font-weight:700; color:var(--text); }
-    .metric-head { display:flex; align-items:center; gap:.45rem; margin-bottom:.35rem; }
-    .metric-value { font-size:2rem; line-height:1.05; font-weight:800; color:var(--text); letter-spacing:-.02em; }
-    .metric-delta { margin-top:.45rem; color:var(--muted); font-size:.92rem; font-weight:600; }
-    .tooltip-wrap { position:relative; display:inline-flex; align-items:center; }
-    .tooltip-icon {
-        display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px;
-        border:1px solid rgba(15,95,166,.24); background:#eef6ff; color:var(--primary); font-size:.82rem; font-weight:800; cursor:help;
-        box-shadow:0 3px 8px rgba(15,95,166,.08);
-    }
-    .tooltip-bubble {
-        position:absolute; left:0; top:calc(100% + 8px); width:min(290px, 78vw); z-index:60;
-        background:#123046; color:#ffffff !important; padding:.9rem 1rem; border-radius:14px; box-shadow:0 16px 32px rgba(18,48,70,.22);
-        font-size:.93rem; line-height:1.46; opacity:0; visibility:hidden; transform:translateY(4px); transition:all .16s ease; pointer-events:none;
-    }
-    .tooltip-wrap:hover .tooltip-bubble, .tooltip-wrap:focus-within .tooltip-bubble, .tooltip-wrap:active .tooltip-bubble { opacity:1; visibility:visible; transform:translateY(0); }
-    .tooltip-bubble::before { content:""; position:absolute; top:-6px; left:12px; width:12px; height:12px; background:#123046; transform:rotate(45deg); }
-    .spinner-card { display:flex; align-items:center; gap:.85rem; background:linear-gradient(180deg,#f5fbff 0%,#edf6ff 100%); border:1px solid rgba(15,95,166,.16); border-radius:18px; padding:1rem 1.05rem; margin-bottom:1rem; }
-    .spinner-dot { width:18px; height:18px; border-radius:50%; border:3px solid rgba(15,95,166,.18); border-top-color:var(--primary); animation:rzspin 1s linear infinite; }
-    @keyframes rzspin { to { transform: rotate(360deg);} }
-
-    div.stButton > button, .stDownloadButton > button, .stFileUploader button, [data-testid="stBaseButton-primary"], .stButton > button[kind="primary"] {
-        width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
-        color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
-        background:linear-gradient(180deg,var(--primary-2) 0%, var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
-        margin-top:0 !important; margin-bottom:0 !important;
-    }
-    div.stButton > button *, .stDownloadButton > button *, .stFileUploader button *, [data-testid="stBaseButton-primary"] *, .stButton > button[kind="primary"] * { color:#ffffff !important; fill:#ffffff !important; -webkit-text-fill-color:#ffffff !important; }
-
-    .listen-btn div.stButton > button {
-        background:linear-gradient(180deg,var(--primary-2) 0%, var(--primary) 100%) !important;
-        box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
-    }
-    .stop-btn div.stButton > button,
-    .danger-btn div.stButton > button {
-        background:linear-gradient(180deg,var(--danger-2) 0%, var(--danger) 100%) !important;
-        box-shadow:0 12px 28px rgba(179,52,59,.22) !important;
-    }
-
-    .audio-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch; margin-top:.25rem; }
-    .audio-actions > div { min-width:0; }
-    .audio-actions .stButton { height:100%; }
-    .audio-actions .stButton > button { height:54px !important; }
-
-    .stFileUploader section { background:#f8fbfe !important; border:2px dashed rgba(31,125,203,.22) !important; border-radius:24px !important; padding:1rem !important; }
-    .stFileUploader small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] > div > small { display:none !important; }
-    .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] > div:first-child, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] svg { display:none !important; }
-
-    .audio-panel { background:linear-gradient(180deg,#ffffff 0%, #f7fbff 100%); border:1px solid var(--line); border-radius:22px; padding:1rem; box-shadow:0 12px 22px rgba(18,48,70,.05); }
-    .audio-title { font-family:'Manrope',sans-serif; font-size:1.05rem; font-weight:800; margin-bottom:.85rem; }
-
-    .history-table { overflow-x:auto; margin-top:.4rem; }
-    .history-table table { width:100%; border-collapse:collapse; font-size:.93rem; background:#fff; overflow:hidden; border-radius:16px; }
-    .history-table thead th { text-align:left; background:#f4f8fc; color:#123046; padding:.8rem .75rem; border-bottom:1px solid var(--line); font-weight:800; }
-    .history-table tbody td { padding:.78rem .75rem; border-bottom:1px solid rgba(18,48,70,.08); color:#123046; }
-    .history-table tbody tr:last-child td { border-bottom:none; }
-    .history-note { margin-top:.55rem; color:var(--muted); font-size:.93rem; }
-
-    @media (max-width:700px){ .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
-    </style>
-    """,
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@700;800&display=swap');
+:root {
+  --surface: rgba(255,255,255,.96);
+  --line: rgba(18,48,70,.12);
+  --text: #123046;
+  --muted: #486171;
+  --primary: #0f5fa6;
+  --primary-2: #1f7dcb;
+  --danger: #b71c1c;
+  --danger-2: #e45757;
+  --shadow: 0 14px 34px rgba(18,48,70,.08);
+}
+html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+  background: linear-gradient(180deg, #f3f8fc 0%, #eef5fb 100%) !important;
+  color: var(--text) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+.block-container {
+  max-width: 840px;
+  padding-top: 1.35rem;
+  padding-bottom: 3rem;
+}
+.rz-header, .panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  border-radius: 24px;
+  padding: 1.15rem;
+  margin-bottom: 1rem;
+  overflow: visible;
+}
+.rz-header {
+  margin-top: .35rem;
+}
+.rz-header img {
+  display: block;
+  width: min(100%, 360px);
+  height: auto;
+}
+.section-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.12rem;
+  font-weight: 800;
+  margin: 0 0 .85rem 0;
+}
+.hint {
+  margin-top: .6rem;
+  color: var(--muted);
+  font-size: .98rem;
+}
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: .85rem;
+}
+.data-card, .metric-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 1rem .95rem;
+  box-shadow: 0 8px 20px rgba(18,48,70,.05);
+}
+.data-label, .metric-label {
+  font-size: .92rem;
+  color: var(--muted);
+  margin-bottom: .28rem;
+}
+.data-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.metric-head {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  margin-bottom: .35rem;
+}
+.metric-value {
+  font-size: 2rem;
+  line-height: 1.05;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+.metric-delta {
+  margin-top: .45rem;
+  color: var(--muted);
+  font-size: .92rem;
+  font-weight: 600;
+}
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(15,95,166,.24);
+  background: #eef6ff;
+  color: var(--primary);
+  font-size: .82rem;
+  font-weight: 800;
+  cursor: help;
+  box-shadow: 0 3px 8px rgba(15,95,166,.08);
+}
+.tooltip-bubble {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: min(290px, 78vw);
+  z-index: 60;
+  background: #123046;
+  color: #ffffff !important;
+  padding: .9rem 1rem;
+  border-radius: 14px;
+  box-shadow: 0 16px 32px rgba(18,48,70,.22);
+  font-size: .93rem;
+  line-height: 1.46;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: all .16s ease;
+  pointer-events: none;
+}
+.tooltip-wrap:hover .tooltip-bubble,
+.tooltip-wrap:focus-within .tooltip-bubble,
+.tooltip-wrap:active .tooltip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.tooltip-bubble::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 12px;
+  width: 12px;
+  height: 12px;
+  background: #123046;
+  transform: rotate(45deg);
+}
+.spinner-card {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  background: linear-gradient(180deg, #f5fbff 0%, #edf6ff 100%);
+  border: 1px solid rgba(15,95,166,.16);
+  border-radius: 18px;
+  padding: 1rem 1.05rem;
+  margin-bottom: 1rem;
+}
+.spinner-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid rgba(15,95,166,.18);
+  border-top-color: var(--primary);
+  animation: rzspin 1s linear infinite;
+}
+@keyframes rzspin { to { transform: rotate(360deg); } }
+div.stButton > button,
+.stDownloadButton button,
+.stFileUploader button,
+[data-testid="stBaseButton-primary"],
+.stButton button[kind="primary"] {
+  width: 100% !important;
+  min-height: 54px !important;
+  border-radius: 18px !important;
+  font-size: 1rem !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  text-shadow: 0 1px 1px rgba(0,0,0,.22) !important;
+  background: linear-gradient(180deg, var(--primary-2) 0%, var(--primary) 100%) !important;
+  border: none !important;
+  box-shadow: 0 12px 28px rgba(15,95,166,.22) !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.listen-btn div.stButton button {
+  background: linear-gradient(180deg, var(--primary-2) 0%, var(--primary) 100%) !important;
+  box-shadow: 0 12px 28px rgba(15,95,166,.22) !important;
+}
+.stop-btn div.stButton button,
+.danger-btn div.stButton button {
+  background: linear-gradient(180deg, var(--danger-2) 0%, var(--danger) 100%) !important;
+  box-shadow: 0 12px 28px rgba(183,28,28,.28) !important;
+}
+.audio-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 16px;
+  align-items: stretch;
+  margin-top: .25rem;
+}
+.audio-actions div { min-width: 0; }
+.audio-actions .stButton { height: 100%; }
+.audio-actions .stButton button { height: 54px !important; }
+.stFileUploader section {
+  background: #f8fbfe !important;
+  border: 2px dashed rgba(31,125,203,.22) !important;
+  border-radius: 24px !important;
+  padding: 1rem !important;
+}
+.stFileUploader small,
+.stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] div small,
+.stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] div:first-child,
+.stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] svg {
+  display: none !important;
+}
+.audio-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 1rem;
+  box-shadow: 0 12px 22px rgba(18,48,70,.05);
+}
+.audio-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-bottom: .85rem;
+}
+.history-table {
+  overflow-x: auto;
+  margin-top: .4rem;
+}
+.history-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .93rem;
+  background: #fff;
+  overflow: hidden;
+  border-radius: 16px;
+  table-layout: fixed;
+}
+.history-table thead th {
+  text-align: left;
+  background: #f4f8fc;
+  color: #123046;
+  padding: .8rem .75rem;
+  border-bottom: 1px solid var(--line);
+  font-weight: 800;
+}
+.history-table tbody td {
+  padding: .78rem .75rem;
+  border-bottom: 1px solid rgba(18,48,70,.08);
+  color: #123046;
+  vertical-align: top;
+}
+.history-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.history-note {
+  margin-top: .55rem;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  font-size: .93rem;
+}
+.col-fecha { width: 88px; }
+.col-periodo { width: 180px; }
+.col-compania { width: 120px; }
+.col-total { width: 110px; }
+.col-consumo { width: 110px; }
+.col-potencia { width: 92px; }
+.col-impuestos { width: 96px; }
+@media (max-width: 700px) {
+  .data-grid { grid-template-columns: 1fr; }
+  .audio-actions { grid-template-columns: 1fr; }
+}
+</style>
+""",
     unsafe_allow_html=True,
 )
 
@@ -233,7 +310,14 @@ LOGO_DATA_URI = "data:image/svg+xml;utf8,%3Csvg%20width%3D%22420%22%20height%3D%
 
 
 def init_state():
-    defaults = {"audio_b64": None, "reproducir": False, "factura_actual": None, "factura_anterior": None, "last_uploaded_name": None}
+    defaults = {
+        "audio_b64": None,
+        "reproducir": False,
+        "factura_actual": None,
+        "factura_anterior": None,
+        "last_uploaded_name": None,
+        "last_file_hash": None,
+    }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
@@ -248,6 +332,11 @@ def reset_current_results():
 def leer_pdf(file):
     reader = PdfReader(file)
     return "\n".join([(page.extract_text() or "") for page in reader.pages])
+
+
+def obtener_hash_archivo(uploaded_file):
+    contenido = uploaded_file.getvalue()
+    return hashlib.sha256(contenido).hexdigest()
 
 
 def preparar_audio(texto):
@@ -292,6 +381,31 @@ def normalizar_compania(texto):
     return re.sub(r"\s+", " ", t)
 
 
+def normalizar_periodo_corto(periodo):
+    if not periodo or str(periodo).strip().lower() == "no detectado":
+        return "No detectado"
+    t = re.sub(r"\s+", " ", str(periodo)).strip()
+    m = re.findall(r"\d{2}/\d{2}/\d{2,4}", t)
+    if len(m) >= 2:
+        a, b = m[0], m[1]
+        if len(a.split("/")[-1]) == 2:
+            a = a[:-2] + "20" + a[-2:]
+        if len(b.split("/")[-1]) == 2:
+            b = b[:-2] + "20" + b[-2:]
+        return f"{a} - {b}"
+    return t
+
+
+def fmt_fecha_corta(valor):
+    if not valor:
+        return ""
+    t = str(valor).strip()
+    try:
+        return datetime.strptime(t, "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y")
+    except Exception:
+        return t[:10]
+
+
 def extraer_desde_pdf(texto_raw):
     data = {}
     patterns = {
@@ -312,8 +426,12 @@ def extraer_desde_pdf(texto_raw):
 
 def parsear_bloques(texto):
     resultado = {
-        "periodo": "No detectado", "compania": "No detectada", "total_pagar": "No detectado",
-        "consumo_kwh": "No detectado", "potencia_kw": "No detectado", "impuestos": "No detectado",
+        "periodo": "No detectado",
+        "compania": "No detectada",
+        "total_pagar": "No detectado",
+        "consumo_kwh": "No detectado",
+        "potencia_kw": "No detectado",
+        "impuestos": "No detectado",
         "explicacion_total": "Es el importe final que pagas este mes. Aquí ya está sumado lo que has consumido, la parte fija y los impuestos.",
         "explicacion_consumo": "Es la energía que has usado durante este periodo. Si sube mucho, normalmente significa que has gastado más electricidad.",
         "explicacion_potencia": "Es la parte fija de la factura. La pagas aunque consumas poco, porque depende de la potencia que tienes contratada en casa.",
@@ -321,11 +439,16 @@ def parsear_bloques(texto):
         "guion_audio": "Hola. Aquí tienes un resumen sencillo de tu factura.",
     }
     aliases = {
-        "periodo": ["periodo", "periodo_factura"], "compania": ["compania", "compañia", "empresa", "comercializadora"],
-        "total_pagar": ["total", "total_pagar", "importe_total"], "consumo_kwh": ["consumo", "consumo_kwh"],
-        "potencia_kw": ["potencia", "potencia_kw"], "impuestos": ["impuestos"],
-        "explicacion_total": ["explicacion_total"], "explicacion_consumo": ["explicacion_consumo"],
-        "explicacion_potencia": ["explicacion_potencia"], "explicacion_impuestos": ["explicacion_impuestos"],
+        "periodo": ["periodo", "periodo_factura"],
+        "compania": ["compania", "compañia", "empresa", "comercializadora"],
+        "total_pagar": ["total", "total_pagar", "importe_total"],
+        "consumo_kwh": ["consumo", "consumo_kwh"],
+        "potencia_kw": ["potencia", "potencia_kw"],
+        "impuestos": ["impuestos"],
+        "explicacion_total": ["explicacion_total"],
+        "explicacion_consumo": ["explicacion_consumo"],
+        "explicacion_potencia": ["explicacion_potencia"],
+        "explicacion_impuestos": ["explicacion_impuestos"],
         "guion_audio": ["guion_audio", "audio"],
     }
     for line in texto.splitlines():
@@ -420,22 +543,104 @@ def esc(texto):
     return str(texto).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', '&quot;')
 
 
+def es_error_temporal_modelo(error):
+    msg = str(error).upper()
+    patrones = ["503", "UNAVAILABLE", "HIGH DEMAND", "RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED", "SERVICE UNAVAILABLE", "TOO MANY REQUESTS", "429"]
+    return any(p in msg for p in patrones)
+
+
+def construir_prompt(texto_raw):
+    return f"""
+Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
+
+Responde SOLO con líneas clave: valor.
+
+periodo:
+compania:
+total_pagar:
+consumo_kwh:
+potencia_kw:
+impuestos:
+explicacion_total:
+explicacion_consumo:
+explicacion_potencia:
+explicacion_impuestos:
+guion_audio:
+
+Reglas:
+- español de lectura fácil
+- frases muy cortas
+- sin markdown
+- tooltips explicativos pero breves
+- si no ves un dato, escribe No detectado
+
+Factura:
+{texto_raw[:12000]}
+"""
+
+
+def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
+    modelos = modelos or MODELOS_ANALISIS
+    status = st.empty()
+    ultimo_error = None
+    for modelo in modelos:
+        for intento in range(reintentos_por_modelo):
+            try:
+                status.markdown(f"<div class='hint'>Analizando con IA ({modelo})...</div>", unsafe_allow_html=True)
+                response = client.models.generate_content(model=modelo, contents=prompt)
+                status.empty()
+                return response, modelo
+            except Exception as e:
+                ultimo_error = e
+                if not es_error_temporal_modelo(e):
+                    status.empty()
+                    raise
+                espera = min(2 ** intento, 6)
+                status.markdown(f"<div class='hint'>Servicio saturado en {modelo}. Reintentando en {espera} s...</div>", unsafe_allow_html=True)
+                time.sleep(espera)
+    status.empty()
+    raise RuntimeError(f"No fue posible analizar con IA en este momento. {ultimo_error}")
+
+
+def construir_respuesta_local(extraidos_pdf):
+    periodo = extraidos_pdf.get("periodo", "No detectado")
+    compania = normalizar_compania(extraidos_pdf.get("compania", "No detectada"))
+    total_pagar = extraidos_pdf.get("total_pagar", "No detectado")
+    consumo_kwh = extraidos_pdf.get("consumo_kwh", "No detectado")
+    potencia_kw = extraidos_pdf.get("potencia_kw", "No detectado")
+    impuestos = extraidos_pdf.get("impuestos", "No detectado")
+    lineas = [
+        f"periodo: {periodo}",
+        f"compania: {compania}",
+        f"total_pagar: {total_pagar}",
+        f"consumo_kwh: {consumo_kwh}",
+        f"potencia_kw: {potencia_kw}",
+        f"impuestos: {impuestos}",
+        "explicacion_total: Es el importe final que pagas este mes. Incluye consumo, parte fija e impuestos.",
+        "explicacion_consumo: Es la energía que has usado en este periodo. Si sube, normalmente has consumido más.",
+        "explicacion_potencia: Es la parte fija de la factura. La pagas aunque consumas poco.",
+        "explicacion_impuestos: Son impuestos y cargos añadidos al importe final.",
+        f"guion_audio: Hola. Esta factura es de {compania}. El periodo es {periodo}. El total a pagar es {total_pagar} euros. El consumo es {consumo_kwh} kilovatios hora. La potencia contratada es {potencia_kw} kilovatios. Los impuestos son {impuestos} euros.",
+    ]
+    return "\n".join(lineas)
+
+
 def render_metric_card(label, value, tooltip, delta=None):
-    delta_html = f'<div class="metric-delta">Frente a la anterior: {esc(delta)}</div>' if delta else ''
+    delta_html = f"<div class='metric-delta'>Frente a la anterior: {esc(delta)}</div>" if delta else ""
     st.markdown(
-        f'''
-        <div class="metric-card">
-            <div class="metric-head">
-                <div class="metric-label">{esc(label)}</div>
-                <div class="tooltip-wrap" tabindex="0" aria-label="Más información sobre {esc(label)}">
-                    <span class="tooltip-icon">?</span>
-                    <div class="tooltip-bubble">{esc(tooltip)}</div>
-                </div>
+        f"""
+        <div class='metric-card'>
+          <div class='metric-head'>
+            <div class='metric-label'>{esc(label)}</div>
+            <div class='tooltip-wrap' tabindex='0' aria-label='Más información sobre {esc(label)}'>
+              <span class='tooltip-icon'>?</span>
+              <div class='tooltip-bubble'>{esc(tooltip)}</div>
             </div>
-            <div class="metric-value">{esc(value)}</div>
-            {delta_html}
+          </div>
+          <div class='metric-value'>{esc(value)}</div>
+          {delta_html}
         </div>
-        ''',
+        """,
         unsafe_allow_html=True,
     )
 
@@ -451,120 +656,177 @@ def render_history_table(df):
         "potencia_kw": "Potencia",
         "impuestos": "Impuestos",
     }
+    clases = {
+        "fecha_guardado": "col-fecha",
+        "periodo": "col-periodo",
+        "compania": "col-compania",
+        "total_pagar": "col-total",
+        "consumo_kwh": "col-consumo",
+        "potencia_kw": "col-potencia",
+        "impuestos": "col-impuestos",
+    }
     show = df[cols].copy()
-    html = ['<div class="history-table"><table><thead><tr>']
+    html = ["<div class='history-table'><table><thead><tr>"]
     for c in cols:
-        html.append(f'<th>{labels[c]}</th>')
-    html.append('</tr></thead><tbody>')
+        html.append(f"<th class='{clases[c]}'>{labels[c]}</th>")
+    html.append("</tr></thead><tbody>")
     for _, row in show.iterrows():
-        html.append('<tr>')
-        html.append(f'<td>{esc(row["fecha_guardado"])}</td>')
-        html.append(f'<td>{esc(row["periodo"])}</td>')
-        html.append(f'<td>{esc(normalizar_compania(row["compania"]))}</td>')
-        html.append(f'<td>{fmt_euro(row["total_pagar"])}</td>')
-        html.append(f'<td>{fmt_num(row["consumo_kwh"], "kWh")}</td>')
-        html.append(f'<td>{fmt_num(row["potencia_kw"], "kW")}</td>')
-        html.append(f'<td>{fmt_euro(row["impuestos"])}</td>')
-        html.append('</tr>')
-    html.append('</tbody></table></div>')
-    st.markdown(''.join(html), unsafe_allow_html=True)
+        html.append("<tr>")
+        html.append(f"<td class='{clases['fecha_guardado']}'>{esc(fmt_fecha_corta(row['fecha_guardado']))}</td>")
+        html.append(f"<td class='{clases['periodo']}'>{esc(normalizar_periodo_corto(row['periodo']))}</td>")
+        html.append(f"<td class='{clases['compania']}'>{esc(normalizar_compania(row['compania']))}</td>")
+        html.append(f"<td class='{clases['total_pagar']}'>{esc(fmt_euro(row['total_pagar']))}</td>")
+        html.append(f"<td class='{clases['consumo_kwh']}'>{esc(fmt_num(row['consumo_kwh'], 'kWh'))}</td>")
+        html.append(f"<td class='{clases['potencia_kw']}'>{esc(fmt_num(row['potencia_kw'], 'kW'))}</td>")
+        html.append(f"<td class='{clases['impuestos']}'>{esc(fmt_euro(row['impuestos']))}</td>")
+        html.append("</tr>")
+    html.append("</tbody></table></div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
 
 
 init_state()
-st.markdown(f'<div class="rz-header"><img src="{LOGO_DATA_URI}" alt="ReciboZen"></div>', unsafe_allow_html=True)
-st.markdown('<div class="panel"><div class="section-title">Sube tu factura</div>', unsafe_allow_html=True)
+
+st.markdown(f"<div class='rz-header'><img src='{LOGO_DATA_URI}' alt='ReciboZen'></div>", unsafe_allow_html=True)
+
+st.markdown("<div class='panel'><div class='section-title'>Sube tu factura</div>", unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Sube tu factura", label_visibility="collapsed", type=["pdf"])
-if uploaded_file is not None and st.session_state.get("last_uploaded_name") != uploaded_file.name:
-    reset_current_results()
-    st.session_state["last_uploaded_name"] = uploaded_file.name
-st.markdown('<div class="hint">Sube un PDF de tu factura para analizarlo.</div></div>', unsafe_allow_html=True)
+current_file_hash = None
+if uploaded_file is not None:
+    current_file_hash = obtener_hash_archivo(uploaded_file)
+    if st.session_state.get("last_file_hash") != current_file_hash:
+        reset_current_results()
+        st.session_state["last_uploaded_name"] = uploaded_file.name
+        st.session_state["last_file_hash"] = current_file_hash
+st.markdown("<div class='hint'>Sube un PDF de tu factura para analizarlo.</div></div>", unsafe_allow_html=True)
 
 analizar = st.button("Analizar factura", type="primary", use_container_width=True)
 spinner_placeholder = st.empty()
+
 if uploaded_file and analizar:
-    spinner_placeholder.markdown('<div class="spinner-card"><div class="spinner-dot"></div><div><strong>Analizando factura…</strong><div style="color:#486171;margin-top:.15rem;">Esto puede tardar unos segundos.</div></div></div>', unsafe_allow_html=True)
-    try:
-        time.sleep(0.35)
-        texto_raw = leer_pdf(uploaded_file)
-        extraidos_pdf = extraer_desde_pdf(texto_raw)
-        prompt = f"""
-Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
-Responde SOLO con líneas clave: valor.
-periodo:
-compania:
-total_pagar:
-consumo_kwh:
-potencia_kw:
-impuestos:
-explicacion_total:
-explicacion_consumo:
-explicacion_potencia:
-explicacion_impuestos:
-guion_audio:
-Reglas: español de lectura fácil, frases muy cortas, sin markdown, tooltips explicativos pero breves.
-Factura:
-{texto_raw[:12000]}
-        """
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        parsed = parsear_bloques(response.text)
-        parsed = combinar_datos(parsed, extraidos_pdf)
-        st.session_state["factura_actual"] = parsed
-        st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
-        historial = guardar_historial(parsed)
-        st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
-    except Exception as e:
-        st.error(f"No se pudo analizar la factura: {e}")
-    finally:
-        spinner_placeholder.empty()
+    if current_file_hash and st.session_state.get("factura_actual") and st.session_state.get("last_file_hash") == current_file_hash:
+        st.info("Esta factura ya está analizada y visible en pantalla. No se ha vuelto a consultar a Gemini.")
+    else:
+        spinner_placeholder.markdown(
+            """
+            <div class='spinner-card'>
+              <div class='spinner-dot'></div>
+              <div><strong>Analizando factura</strong><div style='color:#486171;margin-top:.15rem;'>Esto puede tardar unos segundos.</div></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        try:
+            time.sleep(0.35)
+            texto_raw = leer_pdf(uploaded_file)
+            extraidos_pdf = extraer_desde_pdf(texto_raw)
+            prompt = construir_prompt(texto_raw)
+            try:
+                response, modelo_usado = generar_con_fallback(prompt)
+                parsed = parsear_bloques(getattr(response, "text", "") or "")
+                parsed = combinar_datos(parsed, extraidos_pdf)
+                parsed["modelo_usado"] = modelo_usado
+            except Exception:
+                parsed = parsear_bloques(construir_respuesta_local(extraidos_pdf))
+                parsed = combinar_datos(parsed, extraidos_pdf)
+                parsed["modelo_usado"] = "modo_local_sin_ia"
+                st.warning("La IA sigue saturada. Se ha usado un análisis básico local con los datos detectados en el PDF.")
+            st.session_state["factura_actual"] = parsed
+            st.session_state["last_file_hash"] = current_file_hash
+            st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
+            historial = guardar_historial(parsed)
+            st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
+        except Exception as e:
+            st.error(f"No se pudo analizar la factura: {e}")
+        finally:
+            spinner_placeholder.empty()
 
 factura = st.session_state.get("factura_actual")
 anterior = st.session_state.get("factura_anterior")
+
 if factura:
-    st.markdown('<div class="panel"><div class="section-title">Datos de esta factura</div>', unsafe_allow_html=True)
-    st.markdown(f'''
-        <div class="data-grid">
-            <div class="data-card"><div class="data-label">Periodo</div><div class="data-value">{esc(factura.get("periodo", "No detectado"))}</div></div>
-            <div class="data-card"><div class="data-label">Compañía</div><div class="data-value">{esc(normalizar_compania(factura.get("compania", "No detectada")))}</div></div>
+    st.markdown("<div class='panel'><div class='section-title'>Datos de esta factura</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class='data-grid'>
+          <div class='data-card'><div class='data-label'>Periodo</div><div class='data-value'>{esc(factura.get('periodo', 'No detectado'))}</div></div>
+          <div class='data-card'><div class='data-label'>Compañía</div><div class='data-value'>{esc(normalizar_compania(factura.get('compania', 'No detectada')))}</div></div>
         </div>
-    ''', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+    if factura.get("modelo_usado") == "modo_local_sin_ia":
+        st.info("Modo local activado: se muestran los datos detectados directamente en el PDF, sin interpretación de IA.")
+    elif factura.get("modelo_usado"):
+        st.caption(f"Análisis realizado con: {factura.get('modelo_usado')}")
+
     c1, c2 = st.columns(2)
     with c1:
-        render_metric_card("Total a pagar", fmt_euro(factura.get("total_pagar")), factura.get("explicacion_total"), calcular_delta(factura.get("total_pagar"), anterior.get("total_pagar") if anterior else None, "€") if anterior else None)
-        render_metric_card("Consumo", fmt_num(factura.get("consumo_kwh"), "kWh"), factura.get("explicacion_consumo"), calcular_delta(factura.get("consumo_kwh"), anterior.get("consumo_kwh") if anterior else None, "kWh") if anterior else None)
+        render_metric_card(
+            "Total a pagar",
+            fmt_euro(factura.get("total_pagar")),
+            factura.get("explicacion_total"),
+            calcular_delta(factura.get("total_pagar"), anterior.get("total_pagar") if anterior else None, "€") if anterior else None,
+        )
+        render_metric_card(
+            "Consumo",
+            fmt_num(factura.get("consumo_kwh"), "kWh"),
+            factura.get("explicacion_consumo"),
+            calcular_delta(factura.get("consumo_kwh"), anterior.get("consumo_kwh") if anterior else None, "kWh") if anterior else None,
+        )
     with c2:
-        render_metric_card("Potencia contratada", fmt_num(factura.get("potencia_kw"), "kW"), factura.get("explicacion_potencia"), calcular_delta(factura.get("potencia_kw"), anterior.get("potencia_kw") if anterior else None, "kW") if anterior else None)
-        render_metric_card("Impuestos", fmt_euro(factura.get("impuestos")), factura.get("explicacion_impuestos"), calcular_delta(factura.get("impuestos"), anterior.get("impuestos") if anterior else None, "€") if anterior else None)
+        render_metric_card(
+            "Potencia contratada",
+            fmt_num(factura.get("potencia_kw"), "kW"),
+            factura.get("explicacion_potencia"),
+            calcular_delta(factura.get("potencia_kw"), anterior.get("potencia_kw") if anterior else None, "kW") if anterior else None,
+        )
+        render_metric_card(
+            "Impuestos",
+            fmt_euro(factura.get("impuestos")),
+            factura.get("explicacion_impuestos"),
+            calcular_delta(factura.get("impuestos"), anterior.get("impuestos") if anterior else None, "€") if anterior else None,
+        )
 
-    st.markdown('<div class="audio-panel"><div class="audio-title">Escuchar resumen</div><div class="audio-actions">', unsafe_allow_html=True)
-    col_a, col_b = st.columns(2, gap="medium")
-    with col_a:
-        st.markdown('<div class="listen-btn">', unsafe_allow_html=True)
+    st.markdown("<div class='audio-panel'><div class='audio-title'>Escuchar resumen</div><div class='audio-actions'>", unsafe_allow_html=True)
+    cola, colb = st.columns(2, gap="medium")
+    with cola:
+        st.markdown("<div class='listen-btn'>", unsafe_allow_html=True)
         if st.button("Escuchar", key="btn_escuchar", use_container_width=True):
             st.session_state["reproducir"] = True
-        st.markdown('</div>', unsafe_allow_html=True)
-    with col_b:
-        st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with colb:
+        st.markdown("<div class='stop-btn'>", unsafe_allow_html=True)
         if st.button("Parar", key="btn_parar", use_container_width=True):
             st.session_state["reproducir"] = False
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
     if st.session_state.get("reproducir") and st.session_state.get("audio_b64"):
-        st.components.v1.html(f'<audio autoplay><source src="data:audio/mp3;base64,{st.session_state["audio_b64"]}" type="audio/mp3"></audio>', height=0)
+        st.components.v1.html(
+            f"<audio autoplay><source src='data:audio/mp3;base64,{st.session_state['audio_b64']}' type='audio/mp3'></audio>",
+            height=0,
+        )
 
 hist = deduplicar_historial(cargar_historial())
 if not hist.empty:
     if os.path.exists(HISTORIAL_CSV):
         hist.to_csv(HISTORIAL_CSV, index=False)
-    st.markdown('<div class="panel"><div class="section-title">Historial de facturas guardadas</div>', unsafe_allow_html=True)
+    st.markdown("<div class='panel'><div class='section-title'>Historial de facturas guardadas</div>", unsafe_allow_html=True)
     render_history_table(hist.sort_values("fecha_guardado", ascending=False))
-    st.markdown('<div class="history-note">Solo se guarda una vez cada factura si coincide el mismo periodo y el mismo importe total.</div>', unsafe_allow_html=True)
-    st.download_button("Descargar historial facturas", data=hist.to_csv(index=False).encode("utf-8"), file_name="recibozen_historial.csv", mime="text/csv", use_container_width=True)
-    st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
+    st.markdown("<div class='history-note'>Solo se guarda una vez cada factura si coincide el mismo periodo y el mismo importe total.</div>", unsafe_allow_html=True)
+    st.download_button(
+        "Descargar historial facturas",
+        data=hist.to_csv(index=False).encode("utf-8"),
+        file_name="recibozen_historial.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+    st.markdown("<div class='danger-btn'>", unsafe_allow_html=True)
     if st.button("Borrar historial", key="btn_borrar_historial", use_container_width=True):
         if os.path.exists(HISTORIAL_CSV):
             os.remove(HISTORIAL_CSV)
         st.session_state["factura_anterior"] = None
         st.success("Historial borrado correctamente.")
         st.rerun()
-    st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
