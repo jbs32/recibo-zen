@@ -390,7 +390,9 @@ def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
                 status.markdown(f"<div class='hint'>Servicio saturado en {modelo}. Reintentando en {espera} s...</div>", unsafe_allow_html=True)
                 time.sleep(espera)
     status.empty()
-    raise RuntimeError(f"No fue posible analizar con IA en este momento. {ultimo_error}")
+    if es_error_temporal_modelo(ultimo_error):
+        raise RuntimeError(f"ERROR_TEMPORAL_IA: {ultimo_error}")
+    raise RuntimeError(f"ERROR_IA: {ultimo_error}")
 
 
 def render_metric_card(label, value, tooltip, delta=None):
@@ -510,10 +512,19 @@ if uploaded_file and analizar:
             st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
             historial = guardar_historial(parsed)
             st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
-        except Exception:
+        except Exception as e:
             reset_current_results()
             st.session_state["factura_anterior"] = None
-            st.error("La IA sigue saturada. Por favor, reintenta en unos minutos")
+            error_txt = str(e)
+            if "ERROR_TEMPORAL_IA:" in error_txt:
+                st.error("La IA sigue saturada. Por favor, reintenta en unos minutos")
+                st.caption(error_txt)
+            elif "ERROR_IA:" in error_txt:
+                st.error("La IA no ha podido responder correctamente.")
+                st.caption(error_txt)
+            else:
+                st.error("No se pudo analizar la factura por un error inesperado.")
+                st.caption(error_txt)
         finally:
             spinner_placeholder.empty()
 
