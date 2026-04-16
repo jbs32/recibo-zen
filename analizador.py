@@ -20,6 +20,13 @@ if not API_KEY:
 client = genai.Client(api_key=API_KEY)
 
 
+MODELOS_ANALISIS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+]
+
+
 def es_error_temporal_modelo(error):
     msg = str(error).upper()
     patrones = [
@@ -28,59 +35,99 @@ def es_error_temporal_modelo(error):
         "HIGH DEMAND",
         "RESOURCE_EXHAUSTED",
         "DEADLINE_EXCEEDED",
-        "INTERNAL",
         "SERVICE UNAVAILABLE",
+        "TOO MANY REQUESTS",
+        "429",
     ]
     return any(p in msg for p in patrones)
 
 
-def generar_con_reintentos(prompt, modelo_principal="gemini-2.5-flash", modelo_alternativo=None, max_intentos=4):
-    ultima_exc = None
-    status = st.empty()
+def construir_prompt(texto_raw):
+    return f"""
+Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
 
-    for intento in range(max_intentos):
-        modelo_en_uso = modelo_principal
-        try:
-            if intento > 0:
+Responde SOLO con líneas clave: valor.
+
+periodo:
+compania:
+total_pagar:
+consumo_kwh:
+potencia_kw:
+impuestos:
+explicacion_total:
+explicacion_consumo:
+explicacion_potencia:
+explicacion_impuestos:
+guion_audio:
+
+Reglas:
+- español de lectura fácil
+- frases muy cortas
+- sin markdown
+- tooltips explicativos pero breves
+- si no ves un dato, escribe No detectado
+
+Factura:
+{texto_raw[:12000]}
+"""
+
+
+def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
+    modelos = modelos or MODELOS_ANALISIS
+    status = st.empty()
+    ultimo_error = None
+
+    for modelo in modelos:
+        for intento in range(reintentos_por_modelo):
+            try:
                 status.markdown(
-                    f"<div class='hint'>El servicio de IA está saturado. Reintentando... ({intento + 1}/{max_intentos})</div>",
+                    f"<div class='hint'>Analizando con IA ({modelo})...</div>",
                     unsafe_allow_html=True,
                 )
-            response = client.models.generate_content(
-                model=modelo_en_uso,
-                contents=prompt,
-            )
-            status.empty()
-            return response
-        except Exception as e:
-            ultima_exc = e
-            if not es_error_temporal_modelo(e):
+                response = client.models.generate_content(
+                    model=modelo,
+                    contents=prompt,
+                )
                 status.empty()
-                raise
-
-            if modelo_alternativo and intento == max_intentos - 2:
-                try:
-                    status.markdown(
-                        "<div class='hint'>Probando una ruta alternativa de análisis...</div>",
-                        unsafe_allow_html=True,
-                    )
-                    response = client.models.generate_content(
-                        model=modelo_alternativo,
-                        contents=prompt,
-                    )
+                return response, modelo
+            except Exception as e:
+                ultimo_error = e
+                if not es_error_temporal_modelo(e):
                     status.empty()
-                    return response
-                except Exception as e_alt:
-                    ultima_exc = e_alt
-
-            espera = min(2 ** intento, 8)
-            time.sleep(espera)
+                    raise
+                espera = min(2 ** intento, 6)
+                status.markdown(
+                    f"<div class='hint'>Servicio saturado en {modelo}. Reintentando en {espera} s...</div>",
+                    unsafe_allow_html=True,
+                )
+                time.sleep(espera)
 
     status.empty()
-    raise RuntimeError(
-        "Servicio de IA temporalmente no disponible. Inténtalo de nuevo en unos segundos. "
-        f"Detalle técnico: {ultima_exc}"
-    )
+    raise RuntimeError(f"No fue posible analizar con IA en este momento. {ultimo_error}")
+
+
+def construir_respuesta_local(extraidos_pdf):
+    periodo = extraidos_pdf.get("periodo", "No detectado")
+    compania = normalizar_compania(extraidos_pdf.get("compania", "No detectada"))
+    total_pagar = extraidos_pdf.get("total_pagar", "No detectado")
+    consumo_kwh = extraidos_pdf.get("consumo_kwh", "No detectado")
+    potencia_kw = extraidos_pdf.get("potencia_kw", "No detectado")
+    impuestos = extraidos_pdf.get("impuestos", "No detectado")
+
+    lineas = [
+        f"periodo: {periodo}",
+        f"compania: {compania}",
+        f"total_pagar: {total_pagar}",
+        f"consumo_kwh: {consumo_kwh}",
+        f"potencia_kw: {potencia_kw}",
+        f"impuestos: {impuestos}",
+        "explicacion_total: Es el importe final que pagas este mes. Incluye consumo, parte fija e impuestos.",
+        "explicacion_consumo: Es la energía que has usado en este periodo. Si sube, normalmente has consumido más.",
+        "explicacion_potencia: Es la parte fija de la factura. La pagas aunque consumas poco.",
+        "explicacion_impuestos: Son impuestos y cargos añadidos al importe final.",
+        f"guion_audio: Hola. Esta factura es de {compania}. El periodo es {periodo}. El total a pagar es {total_pagar} euros. El consumo es {consumo_kwh} kilovatios hora. La potencia contratada es {potencia_kw} kilovatios. Los impuestos son {impuestos} euros.",
+    ]
+    return "\n".join(lineas)
 
 
 st.markdown(
