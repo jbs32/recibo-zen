@@ -81,15 +81,15 @@ button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,v
 .history-table tbody td { padding:.78rem .75rem; border-bottom:1px solid rgba(18,48,70,.08); color:#123046; vertical-align:top; }
 .history-table tbody tr:last-child td { border-bottom:none; }
 .history-note { margin-top:.55rem; margin-bottom:1rem; color:var(--muted); font-size:.93rem; }
-.col-fecha { width:106px; white-space:nowrap; }
+.col-fecha { width:132px; white-space:nowrap; }
 .col-periodo { width:180px; }
-.col-compania { width:104px; }
+.col-compania { width:90px; }
 .col-total { width:110px; }
 .col-consumo { width:110px; }
 .col-potencia { width:92px; }
 .col-impuestos { width:96px; }
-.row-action { display:block; width:100%; min-height:38px; border-radius:12px; border:none; background:transparent; color:#123046; text-align:left; font:inherit; padding:0; cursor:pointer; }
-.row-action:hover { color:var(--primary); }
+.row-action { display:block; width:100%; min-height:38px; border-radius:12px; border:none; background:linear-gradient(180deg,#35b56a 0%,#1f8f50 100%); color:#ffffff !important; text-align:center; font:inherit; font-weight:700; padding:.45rem .55rem; cursor:pointer; text-decoration:none !important; box-shadow:0 10px 22px rgba(31,143,80,.22); white-space:nowrap; }
+.row-action:hover { filter:brightness(1.03); }
 .history-danger-wrap { margin-top: 1rem; }
 .history-danger-btn { display:block; width:100%; text-align:center; padding: .95rem 1rem; border-radius:18px; font-size:1rem; font-weight:800; color:#ffffff !important; text-decoration:none !important; background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%); box-shadow:0 12px 28px rgba(183,28,28,.28); }
 @media (max-width:700px) { .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
@@ -518,30 +518,24 @@ def render_history_table(df):
         "potencia_kw": "col-potencia",
         "impuestos": "col-impuestos",
     }
-    st.markdown("<div class='history-table'><table><thead><tr>" + "".join([f"<th class='{clases[c]}'>{labels[c]}</th>" for c in cols]) + "</tr></thead><tbody>", unsafe_allow_html=True)
-    for idx, row in df.iterrows():
-        c1, c2, c3, c4, c5, c6, c7 = st.columns([1.15, 2.1, 1.1, 1.15, 1.15, 1.0, 1.0])
-        with c1:
-            if st.button(fmt_fecha_corta(row['fecha_guardado']), key=f"hist_fecha_{idx}", use_container_width=True):
-                factura_cargada = fila_historial_a_factura(row.to_dict())
-                st.session_state["factura_actual"] = factura_cargada
-                st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
-                st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
-                st.session_state["factura_anterior"] = None
-                st.rerun()
-        with c2:
-            st.markdown(normalizar_periodo_corto(row['periodo']))
-        with c3:
-            st.markdown(normalizar_compania(row['compania']))
-        with c4:
-            st.markdown(fmt_euro(row['total_pagar']))
-        with c5:
-            st.markdown(fmt_num(row['consumo_kwh'], 'kWh'))
-        with c6:
-            st.markdown(fmt_num(row['potencia_kw'], 'kW'))
-        with c7:
-            st.markdown(fmt_euro(row['impuestos']))
-    st.markdown("</tbody></table></div>", unsafe_allow_html=True)
+    html = ["<div class='history-table'><table><thead><tr>"]
+    for c in cols:
+        html.append(f"<th class='{clases[c]}'>{labels[c]}</th>")
+    html.append("</tr></thead><tbody>")
+    for _, row in df.iterrows():
+        hash_val = esc(row.get('archivo_hash', ''))
+        fecha_link = f"?accion=cargar_historial&hash={hash_val}" if hash_val else "#"
+        html.append("<tr>")
+        html.append(f"<td class='{clases['fecha_guardado']}'><a class='row-action' href='{fecha_link}'>{esc(fmt_fecha_corta(row['fecha_guardado']))}</a></td>")
+        html.append(f"<td class='{clases['periodo']}'>{esc(normalizar_periodo_corto(row['periodo']))}</td>")
+        html.append(f"<td class='{clases['compania']}'>{esc(normalizar_compania(row['compania']))}</td>")
+        html.append(f"<td class='{clases['total_pagar']}'>{esc(fmt_euro(row['total_pagar']))}</td>")
+        html.append(f"<td class='{clases['consumo_kwh']}'>{esc(fmt_num(row['consumo_kwh'], 'kWh'))}</td>")
+        html.append(f"<td class='{clases['potencia_kw']}'>{esc(fmt_num(row['potencia_kw'], 'kW'))}</td>")
+        html.append(f"<td class='{clases['impuestos']}'>{esc(fmt_euro(row['impuestos']))}</td>")
+        html.append("</tr>")
+    html.append("</tbody></table></div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
 
 
 init_state()
@@ -553,6 +547,18 @@ if query_params.get("accion") == "borrar_historial":
     st.session_state["factura_anterior"] = None
     reset_current_results()
     st.session_state["borrar_historial_click"] = True
+    st.query_params.clear()
+
+if query_params.get("accion") == "cargar_historial":
+    hash_hist = query_params.get("hash", "")
+    if hash_hist:
+        factura_hist = buscar_factura_por_hash(hash_hist)
+        if factura_hist:
+            factura_cargada = fila_historial_a_factura(factura_hist)
+            st.session_state["factura_actual"] = factura_cargada
+            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
+            st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
+            st.session_state["factura_anterior"] = None
     st.query_params.clear()
 
 st.markdown(f"<div class='rz-header'><img src='{LOGO_DATA_URI}' alt='ReciboZen'></div>", unsafe_allow_html=True)
