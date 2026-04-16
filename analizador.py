@@ -81,13 +81,15 @@ button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,v
 .history-table tbody td { padding:.78rem .75rem; border-bottom:1px solid rgba(18,48,70,.08); color:#123046; vertical-align:top; }
 .history-table tbody tr:last-child td { border-bottom:none; }
 .history-note { margin-top:.55rem; margin-bottom:1rem; color:var(--muted); font-size:.93rem; }
-.col-fecha { width:88px; }
+.col-fecha { width:106px; white-space:nowrap; }
 .col-periodo { width:180px; }
-.col-compania { width:120px; }
+.col-compania { width:104px; }
 .col-total { width:110px; }
 .col-consumo { width:110px; }
 .col-potencia { width:92px; }
 .col-impuestos { width:96px; }
+.row-action { display:block; width:100%; min-height:38px; border-radius:12px; border:none; background:transparent; color:#123046; text-align:left; font:inherit; padding:0; cursor:pointer; }
+.row-action:hover { color:var(--primary); }
 .history-danger-wrap { margin-top: 1rem; }
 .history-danger-btn { display:block; width:100%; text-align:center; padding: .95rem 1rem; border-radius:18px; font-size:1rem; font-weight:800; color:#ffffff !important; text-decoration:none !important; background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%); box-shadow:0 12px 28px rgba(183,28,28,.28); }
 @media (max-width:700px) { .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
@@ -126,8 +128,7 @@ def leer_pdf(file):
 
 
 def obtener_hash_archivo(uploaded_file):
-    contenido = uploaded_file.getvalue()
-    return hashlib.sha256(contenido).hexdigest()
+    return hashlib.sha256(uploaded_file.getvalue()).hexdigest()
 
 
 def preparar_audio(texto):
@@ -143,8 +144,7 @@ def limpiar_numero(texto):
     t = str(texto).strip()
     if not t:
         return None
-    t = t.replace("€", "").replace("EUR", "").replace("kWh", "").replace("kW", "")
-    t = t.replace(" ", "")
+    t = t.replace("€", "").replace("EUR", "").replace("kWh", "").replace("kW", "").replace(" ", "")
     m = re.search(r"-?\d+[\.,]?\d*", t)
     if not m:
         return None
@@ -277,20 +277,79 @@ def cargar_historial():
     return pd.DataFrame()
 
 
+def asegurar_columnas_historial(df):
+    columnas = {
+        "archivo_hash": "",
+        "fecha_guardado": "",
+        "periodo": "No detectado",
+        "compania": "No detectada",
+        "total_pagar": None,
+        "consumo_kwh": None,
+        "potencia_kw": None,
+        "impuestos": None,
+        "explicacion_total": "",
+        "explicacion_consumo": "",
+        "explicacion_potencia": "",
+        "explicacion_impuestos": "",
+        "guion_audio": "",
+        "modelo_usado": "",
+    }
+    out = df.copy()
+    for col, default in columnas.items():
+        if col not in out.columns:
+            out[col] = default
+    return out
+
+
 def deduplicar_historial(df):
     if df.empty:
         return df
-    tmp = df.copy()
+    tmp = asegurar_columnas_historial(df)
     if "compania" in tmp.columns:
         tmp["compania"] = tmp["compania"].apply(normalizar_compania)
+    tmp["_hash_norm"] = tmp["archivo_hash"].astype(str).str.strip()
     tmp["_periodo_norm"] = tmp["periodo"].astype(str).str.strip().str.lower()
     tmp["_total_norm"] = pd.to_numeric(tmp["total_pagar"], errors="coerce").round(2)
-    tmp = tmp.drop_duplicates(subset=["_periodo_norm", "_total_norm"], keep="first")
-    return tmp.drop(columns=["_periodo_norm", "_total_norm"], errors="ignore")
+    has_hash = tmp["_hash_norm"].ne("")
+    con_hash = tmp[has_hash].drop_duplicates(subset=["_hash_norm"], keep="first")
+    sin_hash = tmp[~has_hash].drop_duplicates(subset=["_periodo_norm", "_total_norm"], keep="first")
+    tmp = pd.concat([con_hash, sin_hash], ignore_index=True)
+    return tmp.drop(columns=["_hash_norm", "_periodo_norm", "_total_norm"], errors="ignore")
 
 
-def guardar_historial(factura):
+def buscar_factura_por_hash(file_hash):
+    df = deduplicar_historial(cargar_historial())
+    if df.empty or "archivo_hash" not in df.columns:
+        return None
+    rows = df[df["archivo_hash"].astype(str) == str(file_hash)]
+    if rows.empty:
+        return None
+    row = rows.iloc[0].to_dict()
+    row["compania"] = normalizar_compania(row.get("compania"))
+    return row
+
+
+def fila_historial_a_factura(row):
+    return {
+        "periodo": row.get("periodo", "No detectado"),
+        "compania": normalizar_compania(row.get("compania", "No detectada")),
+        "total_pagar": row.get("total_pagar", "No detectado"),
+        "consumo_kwh": row.get("consumo_kwh", "No detectado"),
+        "potencia_kw": row.get("potencia_kw", "No detectado"),
+        "impuestos": row.get("impuestos", "No detectado"),
+        "explicacion_total": row.get("explicacion_total", ""),
+        "explicacion_consumo": row.get("explicacion_consumo", ""),
+        "explicacion_potencia": row.get("explicacion_potencia", ""),
+        "explicacion_impuestos": row.get("explicacion_impuestos", ""),
+        "guion_audio": row.get("guion_audio", ""),
+        "modelo_usado": row.get("modelo_usado", "historial"),
+        "archivo_hash": row.get("archivo_hash", ""),
+    }
+
+
+def guardar_historial(factura, archivo_hash):
     fila = {
+        "archivo_hash": archivo_hash,
         "fecha_guardado": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "periodo": factura.get("periodo", "No detectado"),
         "compania": normalizar_compania(factura.get("compania", "No detectada")),
@@ -298,8 +357,14 @@ def guardar_historial(factura):
         "consumo_kwh": limpiar_numero(factura.get("consumo_kwh")),
         "potencia_kw": limpiar_numero(factura.get("potencia_kw")),
         "impuestos": limpiar_numero(factura.get("impuestos")),
+        "explicacion_total": factura.get("explicacion_total", ""),
+        "explicacion_consumo": factura.get("explicacion_consumo", ""),
+        "explicacion_potencia": factura.get("explicacion_potencia", ""),
+        "explicacion_impuestos": factura.get("explicacion_impuestos", ""),
+        "guion_audio": factura.get("guion_audio", ""),
+        "modelo_usado": factura.get("modelo_usado", ""),
     }
-    df_prev = cargar_historial()
+    df_prev = asegurar_columnas_historial(cargar_historial())
     df_new = pd.concat([df_prev, pd.DataFrame([fila])], ignore_index=True)
     df_new = deduplicar_historial(df_new)
     df_new.to_csv(HISTORIAL_CSV, index=False)
@@ -385,9 +450,9 @@ def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
                 ultimo_error = e
                 if not es_error_temporal_modelo(e):
                     status.empty()
-                    raise
+                    raise RuntimeError(f"ERROR_IA: {e}")
                 espera = min(2 ** intento, 6)
-                status.markdown(f"<div class='hint'>Servicio saturado en {modelo}. Reintentando en {espera} s...</div>", unsafe_allow_html=True)
+                status.markdown(f"<div class='hint'>Servicio temporalmente no disponible en {modelo}. Reintentando en {espera} s...</div>", unsafe_allow_html=True)
                 time.sleep(espera)
     status.empty()
     if es_error_temporal_modelo(ultimo_error):
@@ -435,14 +500,13 @@ def render_history_table(df):
         "potencia_kw": "col-potencia",
         "impuestos": "col-impuestos",
     }
-    show = df[cols].copy()
     html = ["<div class='history-table'><table><thead><tr>"]
     for c in cols:
         html.append(f"<th class='{clases[c]}'>{labels[c]}</th>")
     html.append("</tr></thead><tbody>")
-    for _, row in show.iterrows():
+    for idx, row in df.iterrows():
         html.append("<tr>")
-        html.append(f"<td class='{clases['fecha_guardado']}'>{esc(fmt_fecha_corta(row['fecha_guardado']))}</td>")
+        html.append(f"<td class='{clases['fecha_guardado']}'><button class='row-action' name='cargar_hist_{idx}'>{esc(fmt_fecha_corta(row['fecha_guardado']))}</button></td>")
         html.append(f"<td class='{clases['periodo']}'>{esc(normalizar_periodo_corto(row['periodo']))}</td>")
         html.append(f"<td class='{clases['compania']}'>{esc(normalizar_compania(row['compania']))}</td>")
         html.append(f"<td class='{clases['total_pagar']}'>{esc(fmt_euro(row['total_pagar']))}</td>")
@@ -461,6 +525,7 @@ if query_params.get("accion") == "borrar_historial":
     if os.path.exists(HISTORIAL_CSV):
         os.remove(HISTORIAL_CSV)
     st.session_state["factura_anterior"] = None
+    reset_current_results()
     st.session_state["borrar_historial_click"] = True
     st.query_params.clear()
 
@@ -481,12 +546,13 @@ analizar = st.button("Analizar factura", type="primary", use_container_width=Tru
 spinner_placeholder = st.empty()
 
 if uploaded_file and analizar:
-    factura_visible = st.session_state.get("factura_actual")
-    misma_factura = current_file_hash and factura_visible and st.session_state.get("last_file_hash") == current_file_hash
-    analisis_con_ia = misma_factura and factura_visible.get("modelo_usado") not in [None, "modo_local_sin_ia"]
-
-    if analisis_con_ia:
-        st.info("Esta factura ya está analizada y visible en pantalla. No se ha vuelto a consultar a Gemini ni se ha duplicado el historial.")
+    factura_guardada = buscar_factura_por_hash(current_file_hash)
+    if factura_guardada:
+        factura_cargada = fila_historial_a_factura(factura_guardada)
+        st.session_state["factura_actual"] = factura_cargada
+        st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
+        st.session_state["factura_anterior"] = None
+        st.info("Esta factura ya estaba guardada. Se ha cargado desde el historial sin volver a consultar la IA.")
     else:
         spinner_placeholder.markdown(
             """
@@ -506,18 +572,19 @@ if uploaded_file and analizar:
             parsed = parsear_bloques(getattr(response, "text", "") or "")
             parsed = combinar_datos(parsed, extraidos_pdf)
             parsed["modelo_usado"] = modelo_usado
+            parsed["archivo_hash"] = current_file_hash
 
             st.session_state["factura_actual"] = parsed
             st.session_state["last_file_hash"] = current_file_hash
             st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
-            historial = guardar_historial(parsed)
+            historial = guardar_historial(parsed, current_file_hash)
             st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
         except Exception as e:
             reset_current_results()
             st.session_state["factura_anterior"] = None
             error_txt = str(e)
             if "ERROR_TEMPORAL_IA:" in error_txt:
-                st.error("La IA sigue saturada. Por favor, reintenta en unos minutos")
+                st.error("La IA no está disponible en este momento. Revisa tu cuota o vuelve a intentarlo más tarde.")
                 st.caption(error_txt)
             elif "ERROR_IA:" in error_txt:
                 st.error("La IA no ha podido responder correctamente.")
@@ -544,7 +611,7 @@ if factura:
     )
     st.markdown("</div>", unsafe_allow_html=True)
     if factura.get("modelo_usado"):
-        st.caption(f"Análisis realizado con: {factura.get('modelo_usado')}")
+        st.caption(f"Origen de los datos: {factura.get('modelo_usado')}")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -590,16 +657,27 @@ if factura:
             height=0,
         )
 
-hist = deduplicar_historial(cargar_historial())
+hist = deduplicar_historial(asegurar_columnas_historial(cargar_historial()))
 if not hist.empty:
     if os.path.exists(HISTORIAL_CSV):
         hist.to_csv(HISTORIAL_CSV, index=False)
+    hist_sorted = hist.sort_values("fecha_guardado", ascending=False).reset_index(drop=True)
     st.markdown("<div class='panel'><div class='section-title'>Historial de facturas guardadas</div>", unsafe_allow_html=True)
-    render_history_table(hist.sort_values("fecha_guardado", ascending=False))
-    st.markdown("<div class='history-note'>Solo se guarda una vez cada factura si coincide el mismo periodo y el mismo importe total.</div>", unsafe_allow_html=True)
+
+    for idx, row in hist_sorted.iterrows():
+        if st.button(f"Cargar factura {fmt_fecha_corta(row['fecha_guardado'])} · {normalizar_compania(row['compania'])}", key=f"hist_btn_{idx}", use_container_width=True):
+            factura_cargada = fila_historial_a_factura(row.to_dict())
+            st.session_state["factura_actual"] = factura_cargada
+            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
+            st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
+            st.session_state["factura_anterior"] = None
+            st.rerun()
+
+    render_history_table(hist_sorted)
+    st.markdown("<div class='history-note'>Al analizar una factura, se guarda toda su información para poder recuperarla desde el historial sin volver a consumir la API.</div>", unsafe_allow_html=True)
     st.download_button(
         "Descargar historial facturas",
-        data=hist.to_csv(index=False).encode("utf-8"),
+        data=hist_sorted.to_csv(index=False).encode("utf-8"),
         file_name="recibozen_historial.csv",
         mime="text/csv",
         use_container_width=True,
