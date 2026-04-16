@@ -42,20 +42,8 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
   color: var(--text) !important;
   font-family: 'Inter', sans-serif !important;
 }
-.block-container {
-  max-width: 840px;
-  padding-top: 2.2rem;
-  padding-bottom: 3rem;
-}
-.rz-header, .panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  border-radius: 24px;
-  padding: 1.15rem;
-  margin-bottom: 1rem;
-  overflow: visible;
-}
+.block-container { max-width: 840px; padding-top: 2.2rem; padding-bottom: 3rem; }
+.rz-header, .panel { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 24px; padding: 1.15rem; margin-bottom: 1rem; overflow: visible; }
 .rz-header { margin-top: .85rem; }
 .rz-header img { display:block; width:min(100%,360px); height:auto; }
 .section-title { font-family:'Manrope',sans-serif; font-size:1.12rem; font-weight:800; margin:0 0 .85rem 0; }
@@ -75,34 +63,10 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
 .spinner-card { display:flex; align-items:center; gap:.85rem; background:linear-gradient(180deg,#f5fbff 0%,#edf6ff 100%); border:1px solid rgba(15,95,166,.16); border-radius:18px; padding:1rem 1.05rem; margin-bottom:1rem; }
 .spinner-dot { width:18px; height:18px; border-radius:50%; border:3px solid rgba(15,95,166,.18); border-top-color:var(--primary); animation:rzspin 1s linear infinite; }
 @keyframes rzspin { to { transform:rotate(360deg); } }
-
-.stDownloadButton button, .stFileUploader button {
-  width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
-  color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
-  background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important;
-  box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important;
-}
-
-.stButton > button {
-  width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important;
-  color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important;
-  background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important;
-  box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important;
-}
-
-button[kind="primary"] {
-  background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important;
-  box-shadow:0 12px 28px rgba(15,95,166,.22) !important;
-}
-
-button[data-testid="baseButton-btn_parar"],
-button[data-testid="baseButton-btn_borrar_historial"] {
-  background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%) !important;
-  box-shadow:0 12px 28px rgba(183,28,28,.28) !important;
-  color:#ffffff !important;
-  -webkit-text-fill-color:#ffffff !important;
-}
-
+.stDownloadButton button, .stFileUploader button { width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important; background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important; }
+.stButton > button { width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important; background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important; }
+button[kind="primary"] { background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; }
+button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%) !important; box-shadow:0 12px 28px rgba(183,28,28,.28) !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; }
 .audio-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch; margin-top:.25rem; }
 .audio-actions div { min-width:0; }
 .audio-actions .stButton { height:100%; }
@@ -124,6 +88,8 @@ button[data-testid="baseButton-btn_borrar_historial"] {
 .col-consumo { width:110px; }
 .col-potencia { width:92px; }
 .col-impuestos { width:96px; }
+.history-danger-wrap { margin-top: 1rem; }
+.history-danger-btn { display:block; width:100%; text-align:center; padding: .95rem 1rem; border-radius:18px; font-size:1rem; font-weight:800; color:#ffffff !important; text-decoration:none !important; background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%); box-shadow:0 12px 28px rgba(183,28,28,.28); }
 @media (max-width:700px) { .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
 </style>
 """,
@@ -141,6 +107,7 @@ def init_state():
         "factura_anterior": None,
         "last_uploaded_name": None,
         "last_file_hash": None,
+        "borrar_historial_click": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -426,39 +393,6 @@ def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
     raise RuntimeError(f"No fue posible analizar con IA en este momento. {ultimo_error}")
 
 
-def construir_respuesta_local(extraidos_pdf):
-    periodo = extraidos_pdf.get("periodo", "No detectado")
-    compania = normalizar_compania(extraidos_pdf.get("compania", "No detectada"))
-    total_pagar = extraidos_pdf.get("total_pagar", "No detectado")
-    consumo_kwh = extraidos_pdf.get("consumo_kwh", "No detectado")
-    potencia_kw = extraidos_pdf.get("potencia_kw", "No detectado")
-    impuestos = extraidos_pdf.get("impuestos", "No detectado")
-    lineas = [
-        f"periodo: {periodo}",
-        f"compania: {compania}",
-        f"total_pagar: {total_pagar}",
-        f"consumo_kwh: {consumo_kwh}",
-        f"potencia_kw: {potencia_kw}",
-        f"impuestos: {impuestos}",
-        "explicacion_total: Es el importe final que pagas este mes. Incluye consumo, parte fija e impuestos.",
-        "explicacion_consumo: Es la energía que has usado en este periodo. Si sube, normalmente has consumido más.",
-        "explicacion_potencia: Es la parte fija de la factura. La pagas aunque consumas poco.",
-        "explicacion_impuestos: Son impuestos y cargos añadidos al importe final.",
-        f"guion_audio: Hola. Esta factura es de {compania}. El periodo es {periodo}. El total a pagar es {total_pagar} euros. El consumo es {consumo_kwh} kilovatios hora. La potencia contratada es {potencia_kw} kilovatios. Los impuestos son {impuestos} euros.",
-    ]
-    return "\n".join(lineas)
-
-
-
-
-def hay_datos_utiles(factura):
-    claves = ["periodo", "compania", "total_pagar", "consumo_kwh", "potencia_kw", "impuestos"]
-    for clave in claves:
-        valor = str(factura.get(clave, "")).strip().lower()
-        if valor and valor not in ["no detectado", "no detectada", "none"]:
-            return True
-    return False
-
 def render_metric_card(label, value, tooltip, delta=None):
     delta_html = f"<div class='metric-delta'>Frente a la anterior: {esc(delta)}</div>" if delta else ""
     st.markdown(
@@ -520,6 +454,14 @@ def render_history_table(df):
 
 init_state()
 
+query_params = st.query_params
+if query_params.get("accion") == "borrar_historial":
+    if os.path.exists(HISTORIAL_CSV):
+        os.remove(HISTORIAL_CSV)
+    st.session_state["factura_anterior"] = None
+    st.session_state["borrar_historial_click"] = True
+    st.query_params.clear()
+
 st.markdown(f"<div class='rz-header'><img src='{LOGO_DATA_URI}' alt='ReciboZen'></div>", unsafe_allow_html=True)
 
 st.markdown("<div class='panel'><div class='section-title'>Sube tu factura</div>", unsafe_allow_html=True)
@@ -558,30 +500,20 @@ if uploaded_file and analizar:
             texto_raw = leer_pdf(uploaded_file)
             extraidos_pdf = extraer_desde_pdf(texto_raw)
             prompt = construir_prompt(texto_raw)
-            try:
-                response, modelo_usado = generar_con_fallback(prompt)
-                parsed = parsear_bloques(getattr(response, "text", "") or "")
-                parsed = combinar_datos(parsed, extraidos_pdf)
-                parsed["modelo_usado"] = modelo_usado
-            except Exception:
-                parsed = parsear_bloques(construir_respuesta_local(extraidos_pdf))
-                parsed = combinar_datos(parsed, extraidos_pdf)
-                parsed["modelo_usado"] = "modo_local_sin_ia"
-                if not hay_datos_utiles(parsed):
-                    reset_current_results()
-                    st.session_state["factura_anterior"] = None
-                    st.error("La IA no está disponible en este momento y no se han podido extraer datos útiles de la factura. Inténtalo de nuevo pasados unos minutos.")
-                    parsed = None
-                else:
-                    st.warning("La IA sigue saturada. Se ha usado un análisis básico local con los datos detectados en el PDF.")
-            if parsed is not None:
-                st.session_state["factura_actual"] = parsed
-                st.session_state["last_file_hash"] = current_file_hash
-                st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
-                historial = guardar_historial(parsed)
-                st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
-        except Exception as e:
-            st.error(f"No se pudo analizar la factura: {e}")
+            response, modelo_usado = generar_con_fallback(prompt)
+            parsed = parsear_bloques(getattr(response, "text", "") or "")
+            parsed = combinar_datos(parsed, extraidos_pdf)
+            parsed["modelo_usado"] = modelo_usado
+
+            st.session_state["factura_actual"] = parsed
+            st.session_state["last_file_hash"] = current_file_hash
+            st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
+            historial = guardar_historial(parsed)
+            st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
+        except Exception:
+            reset_current_results()
+            st.session_state["factura_anterior"] = None
+            st.error("La IA sigue saturada. Por favor, reintenta en unos minutos")
         finally:
             spinner_placeholder.empty()
 
@@ -600,9 +532,7 @@ if factura:
         unsafe_allow_html=True,
     )
     st.markdown("</div>", unsafe_allow_html=True)
-    if factura.get("modelo_usado") == "modo_local_sin_ia":
-        st.info("Modo local activado: se muestran los datos detectados directamente en el PDF, sin interpretación de IA.")
-    elif factura.get("modelo_usado"):
+    if factura.get("modelo_usado"):
         st.caption(f"Análisis realizado con: {factura.get('modelo_usado')}")
 
     c1, c2 = st.columns(2)
@@ -663,10 +593,8 @@ if not hist.empty:
         mime="text/csv",
         use_container_width=True,
     )
-    if st.button("Borrar historial", key="btn_borrar_historial", use_container_width=True):
-        if os.path.exists(HISTORIAL_CSV):
-            os.remove(HISTORIAL_CSV)
-        st.session_state["factura_anterior"] = None
-        st.success("Historial borrado correctamente.")
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='history-danger-wrap'><a class='history-danger-btn' href='?accion=borrar_historial'>Borrar historial</a></div></div>", unsafe_allow_html=True)
+
+if st.session_state.get("borrar_historial_click"):
+    st.success("Historial borrado correctamente.")
+    st.session_state["borrar_historial_click"] = False
