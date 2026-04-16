@@ -19,6 +19,70 @@ if not API_KEY:
     st.stop()
 client = genai.Client(api_key=API_KEY)
 
+
+def es_error_temporal_modelo(error):
+    msg = str(error).upper()
+    patrones = [
+        "503",
+        "UNAVAILABLE",
+        "HIGH DEMAND",
+        "RESOURCE_EXHAUSTED",
+        "DEADLINE_EXCEEDED",
+        "INTERNAL",
+        "SERVICE UNAVAILABLE",
+    ]
+    return any(p in msg for p in patrones)
+
+
+def generar_con_reintentos(prompt, modelo_principal="gemini-2.5-flash", modelo_alternativo=None, max_intentos=4):
+    ultima_exc = None
+    status = st.empty()
+
+    for intento in range(max_intentos):
+        modelo_en_uso = modelo_principal
+        try:
+            if intento > 0:
+                status.markdown(
+                    f"<div class='hint'>El servicio de IA está saturado. Reintentando... ({intento + 1}/{max_intentos})</div>",
+                    unsafe_allow_html=True,
+                )
+            response = client.models.generate_content(
+                model=modelo_en_uso,
+                contents=prompt,
+            )
+            status.empty()
+            return response
+        except Exception as e:
+            ultima_exc = e
+            if not es_error_temporal_modelo(e):
+                status.empty()
+                raise
+
+            if modelo_alternativo and intento == max_intentos - 2:
+                try:
+                    status.markdown(
+                        "<div class='hint'>Probando una ruta alternativa de análisis...</div>",
+                        unsafe_allow_html=True,
+                    )
+                    response = client.models.generate_content(
+                        model=modelo_alternativo,
+                        contents=prompt,
+                    )
+                    status.empty()
+                    return response
+                except Exception as e_alt:
+                    ultima_exc = e_alt
+
+            espera = min(2 ** intento, 8)
+            time.sleep(espera)
+
+    status.empty()
+    raise RuntimeError(
+        "Servicio de IA temporalmente no disponible. Inténtalo de nuevo en unos segundos. "
+        f"Detalle técnico: {ultima_exc}"
+    )
+
+
 st.markdown(
     """
     <style>
