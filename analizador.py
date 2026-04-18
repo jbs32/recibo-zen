@@ -11,17 +11,25 @@ import time
 import hashlib
 from datetime import datetime
 
+# =============================================================================
+# CONFIGURACIÓN DE PÁGINA Y ESTILOS (UI/UX)
+# =============================================================================
 st.set_page_config(page_title="ReciboZen", page_icon="🧾", layout="centered")
 
+# Definición de constantes para persistencia
 HISTORIAL_CSV = "recibozen_historial.csv"
+
+# Recuperación de la API KEY desde los secretos de Streamlit
 API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
 if not API_KEY:
     st.error("Falta configurar GOOGLE_API_KEY en Streamlit Secrets.")
     st.stop()
 
+# Configuración del cliente de Google GenAI (Gemini)
 client = genai.Client(api_key=API_KEY)
-MODELOS_ANALISIS = ["gemini-2.5-flash", "gemini-2.0-flash"]
+MODELOS_ANALISIS = ["gemini-2.0-flash", "gemini-1.5-flash"] # Modelos más rápidos y capaces
 
+# Estilos CSS personalizados para una interfaz didáctica y accesible
 st.markdown(
     """
 <style>
@@ -34,678 +42,295 @@ st.markdown(
   --primary: #0f5fa6;
   --primary-2: #1f7dcb;
   --danger: #b71c1c;
-  --danger-2: #e45757;
-  --shadow: 0 14px 34px rgba(18,48,70,.08);
 }
-html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-  background: linear-gradient(180deg, #f3f8fc 0%, #eef5fb 100%) !important;
-  color: var(--text) !important;
-  font-family: 'Inter', sans-serif !important;
+
+/* Diseño general y tipografía */
+.main { background-color: #f8fafc; font-family: 'Inter', sans-serif; color: var(--text); }
+h1, h2, h3 { font-family: 'Manrope', sans-serif; font-weight: 800; color: var(--text); }
+
+/* Contenedores visuales (Paneles) */
+.panel {
+    background: white;
+    padding: 24px;
+    border-radius: 20px;
+    border: 1px solid var(--line);
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
 }
-.block-container { max-width: 840px; padding-top: 2.2rem; padding-bottom: 3rem; }
-.rz-header, .panel { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 24px; padding: 1.15rem; margin-bottom: 1rem; overflow: visible; }
-.rz-header { margin-top: .85rem; }
-.rz-header img { display:block; width:min(100%,360px); height:auto; }
-.section-title { font-family:'Manrope',sans-serif; font-size:1.12rem; font-weight:800; margin:0 0 .85rem 0; }
-.hint { margin-top:.6rem; color:var(--muted); font-size:.98rem; }
-.data-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
-.data-card, .metric-card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:1rem .95rem; box-shadow:0 8px 20px rgba(18,48,70,.05); }
-.data-label, .metric-label { font-size:.92rem; color:var(--muted); margin-bottom:.28rem; }
-.data-value { font-size:1.05rem; font-weight:700; color:var(--text); }
-.metric-head { display:flex; align-items:center; gap:.45rem; margin-bottom:.35rem; }
-.metric-value { font-size:2rem; line-height:1.05; font-weight:800; color:var(--text); letter-spacing:-.02em; }
-.metric-delta { margin-top:.45rem; color:var(--muted); font-size:.92rem; font-weight:600; }
-.tooltip-wrap { position:relative; display:inline-flex; align-items:center; }
-.tooltip-icon { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; border:1px solid rgba(15,95,166,.24); background:#eef6ff; color:var(--primary); font-size:.82rem; font-weight:800; cursor:help; box-shadow:0 3px 8px rgba(15,95,166,.08); }
-.tooltip-bubble { position:absolute; left:0; top:calc(100% + 8px); width:min(290px,78vw); z-index:60; background:#123046; color:#ffffff !important; padding:.9rem 1rem; border-radius:14px; box-shadow:0 16px 32px rgba(18,48,70,.22); font-size:.93rem; line-height:1.46; opacity:0; visibility:hidden; transform:translateY(4px); transition:all .16s ease; pointer-events:none; }
-.tooltip-wrap:hover .tooltip-bubble, .tooltip-wrap:focus-within .tooltip-bubble, .tooltip-wrap:active .tooltip-bubble { opacity:1; visibility:visible; transform:translateY(0); }
-.tooltip-bubble::before { content:""; position:absolute; top:-6px; left:12px; width:12px; height:12px; background:#123046; transform:rotate(45deg); }
-.spinner-card { display:flex; align-items:center; gap:.85rem; background:linear-gradient(180deg,#f5fbff 0%,#edf6ff 100%); border:1px solid rgba(15,95,166,.16); border-radius:18px; padding:1rem 1.05rem; margin-bottom:1rem; }
-.spinner-dot { width:18px; height:18px; border-radius:50%; border:3px solid rgba(15,95,166,.18); border-top-color:var(--primary); animation:rzspin 1s linear infinite; }
-@keyframes rzspin { to { transform:rotate(360deg); } }
-.stDownloadButton button, .stFileUploader button { width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important; background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important; }
-.stButton > button { width:100% !important; min-height:54px !important; border-radius:18px !important; font-size:1rem !important; font-weight:800 !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-shadow:0 1px 1px rgba(0,0,0,.22) !important; background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; border:none !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; margin-top:0 !important; margin-bottom:0 !important; }
-button[kind="primary"] { background:linear-gradient(180deg,var(--primary-2) 0%,var(--primary) 100%) !important; box-shadow:0 12px 28px rgba(15,95,166,.22) !important; }
-button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%) !important; box-shadow:0 12px 28px rgba(183,28,28,.28) !important; color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; }
-.audio-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch; margin-top:.25rem; }
-.audio-actions div { min-width:0; }
-.audio-actions .stButton { height:100%; }
-.audio-actions .stButton button { height:54px !important; }
-.stFileUploader section { background:#f8fbfe !important; border:2px dashed rgba(31,125,203,.22) !important; border-radius:24px !important; padding:1rem !important; }
-.stFileUploader small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] div small, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] div:first-child, .stFileUploader [data-testid="stFileUploaderDropzoneInstructions"] svg { display:none !important; }
-.audio-panel { background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%); border:1px solid var(--line); border-radius:22px; padding:1rem; box-shadow:0 12px 22px rgba(18,48,70,.05); }
-.audio-title { font-family:'Manrope',sans-serif; font-size:1.05rem; font-weight:800; margin-bottom:.85rem; }
-.history-table { overflow-x:auto; margin-top:.4rem; }
-.history-table table { width:100%; border-collapse:collapse; font-size:.93rem; background:#fff; overflow:hidden; border-radius:16px; table-layout:fixed; }
-.history-table thead th { text-align:left; background:#f4f8fc; color:#123046; padding:.8rem .75rem; border-bottom:1px solid var(--line); font-weight:800; }
-.history-table tbody td { padding:.78rem .75rem; border-bottom:1px solid rgba(18,48,70,.08); color:#123046; vertical-align:top; }
-.history-table tbody tr:last-child td { border-bottom:none; }
-.history-note { margin-top:.55rem; margin-bottom:1rem; color:var(--muted); font-size:.93rem; }
-.col-fecha { width:132px; white-space:nowrap; }
-.col-periodo { width:180px; }
-.col-compania { width:90px; }
-.col-total { width:110px; }
-.col-consumo { width:110px; }
-.col-potencia { width:92px; }
-.col-impuestos { width:96px; }
-.row-action { display:block; width:100%; min-height:38px; border-radius:12px; border:none; background:linear-gradient(180deg,#35b56a 0%,#1f8f50 100%); color:#ffffff !important; text-align:center; font:inherit; font-weight:700; padding:.45rem .55rem; cursor:pointer; text-decoration:none !important; box-shadow:0 10px 22px rgba(31,143,80,.22); white-space:nowrap; }
-.row-action:hover { filter:brightness(1.03); }
-.history-danger-wrap { margin-top: 1rem; }
-.history-danger-btn { display:block; width:100%; text-align:center; padding: .95rem 1rem; border-radius:18px; font-size:1rem; font-weight:800; color:#ffffff !important; text-decoration:none !important; background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%); box-shadow:0 12px 28px rgba(183,28,28,.28); }
-@media (max-width:700px) { .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
+
+/* Etiquetas de categoría (Badges) */
+.badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+.badge-luz { background: #fff9c4; color: #fbc02d; }
+.badge-agua { background: #e3f2fd; color: #1976d2; }
+.badge-gas { background: #fbe9e7; color: #d84315; }
+
+/* Títulos de sección */
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-LOGO_DATA_URI = "data:image/svg+xml;utf8,%3Csvg%20width%3D%22420%22%20height%3D%2296%22%20viewBox%3D%220%200%20420%2096%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20role%3D%22img%22%20aria-label%3D%22Logotipo%20de%20ReciboZen%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22rzg%22%20x1%3D%2216%22%20y1%3D%2216%22%20x2%3D%2280%22%20y2%3D%2280%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20stop-color%3D%22%235BB7FF%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231677C8%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%2280%22%20height%3D%2280%22%20rx%3D%2224%22%20fill%3D%22%23EFF7FF%22/%3E%3Cpath%20d%3D%22M31%2032.5C31%2028.3579%2034.3579%2025%2038.5%2025H57.5C61.6421%2025%2065%2028.3579%2065%2032.5V63.5C65%2067.6421%2061.6421%2071%2057.5%2071H38.5C34.3579%2071%2031%2067.6421%2031%2063.5V32.5Z%22%20fill%3D%22url(%23rzg)%22/%3E%3Cpath%20d%3D%22M42.5%2041.5H53.5%22%20stroke%3D%22white%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M42.5%2049.5H54.5%22%20stroke%3D%22white%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.92%22/%3E%3Cpath%20d%3D%22M42.5%2057.5H50.5%22%20stroke%3D%22white%22%20stroke-width%3D%223.5%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.86%22/%3E%3Cpath%20d%3D%22M66%2057C71.3333%2053.6667%2076.6667%2053.6667%2082%2057%22%20stroke%3D%22%237CC7FF%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M66%2065C71.3333%2061.6667%2076.6667%2061.6667%2082%2065%22%20stroke%3D%22%23A6DBFF%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%22108%22%20y%3D%2249%22%20fill%3D%22%23163042%22%20font-family%3D%22Manrope%2C%20Inter%2C%20Arial%2C%20sans-serif%22%20font-size%3D%2234%22%20font-weight%3D%22800%22%20letter-spacing%3D%22-0.02em%22%3EReciboZen%3C/text%3E%3Ctext%20x%3D%22110%22%20y%3D%2269%22%20fill%3D%22%236B8295%22%20font-family%3D%22Inter%2C%20Arial%2C%20sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22500%22%3ETu%20factura%20explicada%20con%20calma%3C/text%3E%3C/svg%3E"
+# =============================================================================
+# LÓGICA DE DETECCIÓN Y CATEGORIZACIÓN
+# =============================================================================
 
+def detectar_categoria(texto_raw):
+    """
+    Analiza el texto bruto de la factura para clasificarla.
+    Es vital para la organización del historial.
+    """
+    t = texto_raw.lower()
+    # Prioridad Agua: Términos específicos encontrados en factura-agua-febrero.pdf
+    if any(x in t for x in ["m3", "aigua", "agua", "canon", "clavegueram", "aqualia"]):
+        return "Agua"
+    # Prioridad Luz: Términos en factura-enero.pdf
+    if any(x in t for x in ["kwh", "potencia contratada", "eléctrico", "luz", "electricidad"]):
+        return "Luz"
+    # Gas: Términos habituales de gas natural
+    if any(x in t for x in ["gas natural", "término de energía gas", "hace referencia al gas"]):
+        return "Gas"
+    return "Otros"
 
-def init_state():
-    defaults = {
-        "audio_b64": None,
-        "reproducir": False,
-        "factura_actual": None,
-        "factura_anterior": None,
-        "last_uploaded_name": None,
-        "last_file_hash": None,
-        "borrar_historial_click": False,
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-
-def reset_current_results():
-    st.session_state["audio_b64"] = None
-    st.session_state["reproducir"] = False
-    st.session_state["factura_actual"] = None
-
-
-def leer_pdf(file):
-    reader = PdfReader(file)
-    return "\n".join([(page.extract_text() or "") for page in reader.pages])
-
-
-def obtener_hash_archivo(uploaded_file):
-    return hashlib.sha256(uploaded_file.getvalue()).hexdigest()
-
-
-def preparar_audio(texto):
-    tts = gTTS(text=texto, lang="es", slow=False)
-    audio_io = io.BytesIO()
-    tts.write_to_fp(audio_io)
-    return base64.b64encode(audio_io.getvalue()).decode()
-
-
-def limpiar_numero(texto):
-    if texto is None:
-        return None
-    t = str(texto).strip()
-    if not t:
-        return None
-    t = t.replace("€", "").replace("EUR", "").replace("kWh", "").replace("kW", "").replace(" ", "")
-    m = re.search(r"-?\d+[\.,]?\d*", t)
-    if not m:
-        return None
-    num = m.group(0)
-    if "," in num and "." in num:
-        if num.rfind(",") > num.rfind("."):
-            num = num.replace(".", "").replace(",", ".")
-        else:
-            num = num.replace(",", "")
-    elif "," in num:
-        num = num.replace(",", ".")
-    try:
-        return float(num)
-    except Exception:
-        return None
-
-
-def normalizar_compania(texto):
-    t = (texto or "").strip()
-    low = t.lower()
-    if any(x in low for x in ["visalia", "domestica gas y electricidad", "doméstica gas y electricidad"]):
-        return "Visalia"
-    if not t:
-        return "No detectada"
-    return re.sub(r"\s+", " ", t)
-
-
-def normalizar_periodo_corto(periodo):
-    if not periodo or str(periodo).strip().lower() == "no detectado":
-        return "No detectado"
-    t = re.sub(r"\s+", " ", str(periodo)).strip()
-    m = re.findall(r"\d{1,2}/\d{1,2}/\d{2,4}", t)
-    if len(m) >= 2:
-        def norm_fecha(x):
-            d, mth, y = x.split("/")
-            if len(y) == 2:
-                y = "20" + y
-            return f"{int(d):02d}/{int(mth):02d}/{y}"
-        return f"{norm_fecha(m[0])} - {norm_fecha(m[1])}"
-
-    meses = {
-        'enero':'01','febrero':'02','marzo':'03','abril':'04','mayo':'05','junio':'06',
-        'julio':'07','agosto':'08','septiembre':'09','setiembre':'09','octubre':'10','noviembre':'11','diciembre':'12'
-    }
-    low = t.lower()
-    patron = r"(\d{1,2}) de ([a-záéíóú]+)(?: de (\d{4}))?"
-    fechas = re.findall(patron, low)
-    if len(fechas) >= 2:
-        year_final = fechas[-1][2] if fechas[-1][2] else ""
-        out = []
-        for i, (d, mes, y) in enumerate(fechas[:2]):
-            yy = y or year_final
-            mm = meses.get(mes, '01')
-            if yy:
-                out.append(f"{int(d):02d}/{mm}/{yy}")
-        if len(out) == 2:
-            return f"{out[0]} - {out[1]}"
-    return t
-
-
-def fmt_fecha_corta(valor):
-    if not valor:
-        return ""
-    t = str(valor).strip()
-    try:
-        return datetime.strptime(t, "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y")
-    except Exception:
-        return t[:10]
-
-
-def extraer_desde_pdf(texto_raw):
-    data = {}
-    patterns = {
-        "periodo": r"Periodo de facturaci[oó]n\s+([0-9]{2}[0-9/\- ]+[0-9]{2,4})",
-        "total_pagar": r"Total\s+([0-9]+,[0-9]{2})",
-        "consumo_kwh": r"Consumo total\s+([0-9]+,[0-9]{2})\s*kWh",
-        "potencia_kw": r"Potencia contratada[\s\S]{0,80}?([0-9]+,[0-9]{2})\s*kW",
-        "impuestos": r"IVA\s+([0-9]+,[0-9]{2})",
-    }
-    for key, pat in patterns.items():
-        m = re.search(pat, texto_raw, flags=re.IGNORECASE)
-        if m:
-            data[key] = m.group(1)
-    if re.search(r"visalia|dom[eé]stica gas y electricidad", texto_raw, flags=re.IGNORECASE):
-        data["compania"] = "Visalia"
-    return data
-
-
-def parsear_bloques(texto):
-    resultado = {
-        "periodo": "No detectado",
-        "compania": "No detectada",
-        "total_pagar": "No detectado",
-        "consumo_kwh": "No detectado",
-        "potencia_kw": "No detectado",
-        "impuestos": "No detectado",
-        "explicacion_total": "Es el importe final que pagas este mes. Aquí ya está sumado lo que has consumido, la parte fija y los impuestos.",
-        "explicacion_consumo": "Es la energía que has usado durante este periodo. Si sube mucho, normalmente significa que has gastado más electricidad.",
-        "explicacion_potencia": "Es la parte fija de la factura. La pagas aunque consumas poco, porque depende de la potencia que tienes contratada en casa.",
-        "explicacion_impuestos": "Son los impuestos y cargos añadidos a la factura. No dependen solo de lo que consumes, también influyen normas y peajes.",
-        "guion_audio": "Hola. Aquí tienes un resumen sencillo de tu factura.",
-    }
-    aliases = {
-        "periodo": ["periodo", "periodo_factura"],
-        "compania": ["compania", "compañia", "empresa", "comercializadora"],
-        "total_pagar": ["total", "total_pagar", "importe_total"],
-        "consumo_kwh": ["consumo", "consumo_kwh"],
-        "potencia_kw": ["potencia", "potencia_kw"],
-        "impuestos": ["impuestos"],
-        "explicacion_total": ["explicacion_total"],
-        "explicacion_consumo": ["explicacion_consumo"],
-        "explicacion_potencia": ["explicacion_potencia"],
-        "explicacion_impuestos": ["explicacion_impuestos"],
-        "guion_audio": ["guion_audio", "audio"],
-    }
-    for line in texto.splitlines():
-        if ":" not in line:
-            continue
-        k, v = line.split(":", 1)
-        key = k.strip().lower().replace(" ", "_")
-        val = v.strip()
-        for dest, keys in aliases.items():
-            if key in keys and val:
-                resultado[dest] = val
-                break
-    resultado["compania"] = normalizar_compania(resultado.get("compania"))
-    return resultado
-
-
-def combinar_datos(ia, pdf):
-    merged = ia.copy()
-    for key in ["periodo", "total_pagar", "consumo_kwh", "potencia_kw", "impuestos", "compania"]:
-        if pdf.get(key):
-            merged[key] = pdf[key]
-    merged["compania"] = normalizar_compania(merged.get("compania"))
-    return merged
-
+# =============================================================================
+# GESTIÓN DEL HISTORIAL (CSV Y PANDAS)
+# =============================================================================
 
 def cargar_historial():
+    """Carga el historial desde CSV de forma segura."""
     if os.path.exists(HISTORIAL_CSV):
         try:
-            df = pd.read_csv(HISTORIAL_CSV)
-            if "compania" in df.columns:
-                df["compania"] = df["compania"].apply(normalizar_compania)
-            return df
-        except Exception:
+            return pd.read_csv(HISTORIAL_CSV)
+        except:
             return pd.DataFrame()
     return pd.DataFrame()
 
-
 def asegurar_columnas_historial(df):
-    columnas = {
+    """
+    IMPORTANTE: Esta función garantiza que el CSV siempre tenga las columnas necesarias.
+    Si se añade una nueva funcionalidad (como 'categoria'), esta función evita que la app falle.
+    """
+    columnas_requeridas = {
         "archivo_hash": "",
         "fecha_guardado": "",
+        "categoria": "Otros",        # Nueva columna para la separación
         "periodo": "No detectado",
         "compania": "No detectada",
-        "total_pagar": None,
-        "consumo_kwh": None,
-        "potencia_kw": None,
-        "impuestos": None,
-        "explicacion_total": "",
-        "explicacion_consumo": "",
-        "explicacion_potencia": "",
-        "explicacion_impuestos": "",
-        "guion_audio": "",
-        "modelo_usado": "",
+        "total_pagar": 0.0,
+        "consumo_principal": 0.0,    # Genérico para kwh o m3
+        "unidad": "",                # 'kWh' o 'm3'
+        "resumen_didactico": "",
+        "audio_b64": ""
     }
-    out = df.copy()
-    for col, default in columnas.items():
-        if col not in out.columns:
-            out[col] = default
-    return out
-
+    
+    if df.empty:
+        return pd.DataFrame(columns=columnas_requeridas.keys())
+    
+    for col, default in columnas_requeridas.items():
+        if col not in df.columns:
+            df[col] = default
+    return df
 
 def deduplicar_historial(df):
-    if df.empty:
-        return df
-    tmp = asegurar_columnas_historial(df)
-    if "compania" in tmp.columns:
-        tmp["compania"] = tmp["compania"].apply(normalizar_compania)
-    tmp["_hash_norm"] = tmp["archivo_hash"].astype(str).str.strip()
-    tmp["_periodo_norm"] = tmp["periodo"].astype(str).str.strip().str.lower()
-    tmp["_total_norm"] = pd.to_numeric(tmp["total_pagar"], errors="coerce").round(2)
-    has_hash = tmp["_hash_norm"].ne("")
-    con_hash = tmp[has_hash].drop_duplicates(subset=["_hash_norm"], keep="first")
-    sin_hash = tmp[~has_hash].drop_duplicates(subset=["_periodo_norm", "_total_norm"], keep="first")
-    tmp = pd.concat([con_hash, sin_hash], ignore_index=True)
-    return tmp.drop(columns=["_hash_norm", "_periodo_norm", "_total_norm"], errors="ignore")
+    """Evita guardar dos veces la misma factura basándose en el contenido único."""
+    if df.empty: return df
+    return df.drop_duplicates(subset=["archivo_hash"], keep="first")
 
+# =============================================================================
+# PROCESAMIENTO DE DOCUMENTOS (PDF + IA)
+# =============================================================================
 
-def buscar_factura_por_hash(file_hash):
-    df = deduplicar_historial(cargar_historial())
-    if df.empty or "archivo_hash" not in df.columns:
-        return None
-    rows = df[df["archivo_hash"].astype(str) == str(file_hash)]
-    if rows.empty:
-        return None
-    row = rows.iloc[0].to_dict()
-    row["compania"] = normalizar_compania(row.get("compania"))
-    return row
+def extraer_texto_pdf(file):
+    """Extrae todo el texto de un PDF para dárselo a la IA."""
+    reader = PdfReader(file)
+    texto = ""
+    for page in reader.pages:
+        content = page.extract_text()
+        if content:
+            texto += content + "\n"
+    return texto
 
-
-def fila_historial_a_factura(row):
-    return {
-        "periodo": row.get("periodo", "No detectado"),
-        "compania": normalizar_compania(row.get("compania", "No detectada")),
-        "total_pagar": row.get("total_pagar", "No detectado"),
-        "consumo_kwh": row.get("consumo_kwh", "No detectado"),
-        "potencia_kw": row.get("potencia_kw", "No detectado"),
-        "impuestos": row.get("impuestos", "No detectado"),
-        "explicacion_total": row.get("explicacion_total", ""),
-        "explicacion_consumo": row.get("explicacion_consumo", ""),
-        "explicacion_potencia": row.get("explicacion_potencia", ""),
-        "explicacion_impuestos": row.get("explicacion_impuestos", ""),
-        "guion_audio": row.get("guion_audio", ""),
-        "modelo_usado": row.get("modelo_usado", "historial"),
-        "archivo_hash": row.get("archivo_hash", ""),
-    }
-
-
-def guardar_historial(factura, archivo_hash):
-    fila = {
-        "archivo_hash": archivo_hash,
-        "fecha_guardado": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "periodo": factura.get("periodo", "No detectado"),
-        "compania": normalizar_compania(factura.get("compania", "No detectada")),
-        "total_pagar": limpiar_numero(factura.get("total_pagar")),
-        "consumo_kwh": limpiar_numero(factura.get("consumo_kwh")),
-        "potencia_kw": limpiar_numero(factura.get("potencia_kw")),
-        "impuestos": limpiar_numero(factura.get("impuestos")),
-        "explicacion_total": factura.get("explicacion_total", ""),
-        "explicacion_consumo": factura.get("explicacion_consumo", ""),
-        "explicacion_potencia": factura.get("explicacion_potencia", ""),
-        "explicacion_impuestos": factura.get("explicacion_impuestos", ""),
-        "guion_audio": factura.get("guion_audio", ""),
-        "modelo_usado": factura.get("modelo_usado", ""),
-    }
-    df_prev = asegurar_columnas_historial(cargar_historial())
-    df_new = pd.concat([df_prev, pd.DataFrame([fila])], ignore_index=True)
-    df_new = deduplicar_historial(df_new)
-    df_new.to_csv(HISTORIAL_CSV, index=False)
-    return df_new
-
-
-def fmt_euro(valor):
-    n = limpiar_numero(valor)
-    if n is None:
-        return "No detectado"
-    return f"{n:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-def fmt_num(valor, sufijo=""):
-    n = limpiar_numero(valor)
-    if n is None:
-        return "No detectado"
-    return f"{n:,.2f} {sufijo}".replace(",", "X").replace(".", ",").replace("X", ".").strip()
-
-
-def calcular_delta(actual, previo, sufijo="€"):
-    a = limpiar_numero(actual)
-    b = limpiar_numero(previo)
-    if a is None or b is None:
-        return None
-    d = a - b
-    sign = "+" if d > 0 else ""
-    return f"{sign}{d:,.2f} {sufijo}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-def esc(texto):
-    return str(texto).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', '&quot;')
-
-
-def es_error_temporal_modelo(error):
-    msg = str(error).upper()
-    patrones = ["503", "UNAVAILABLE", "HIGH DEMAND", "RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED", "SERVICE UNAVAILABLE", "TOO MANY REQUESTS", "429"]
-    return any(p in msg for p in patrones)
-
-
-def construir_prompt(texto_raw):
-    return f"""
-Eres ReciboZen. Analiza una factura para personas mayores o con poca familiaridad con términos energéticos.
-
-Responde SOLO con líneas clave: valor.
-
-periodo:
-compania:
-total_pagar:
-consumo_kwh:
-potencia_kw:
-impuestos:
-explicacion_total:
-explicacion_consumo:
-explicacion_potencia:
-explicacion_impuestos:
-guion_audio:
-
-Reglas:
-- español de lectura fácil
-- frases muy cortas
-- sin markdown
-- tooltips explicativos pero breves
-- si no ves un dato, escribe No detectado
-
-Factura:
-{texto_raw[:12000]}
-"""
-
-
-def generar_con_fallback(prompt, modelos=None, reintentos_por_modelo=2):
-    modelos = modelos or MODELOS_ANALISIS
-    status = st.empty()
-    ultimo_error = None
-    for modelo in modelos:
-        for intento in range(reintentos_por_modelo):
-            try:
-                status.markdown(f"<div class='hint'>Analizando con IA ({modelo})...</div>", unsafe_allow_html=True)
-                response = client.models.generate_content(model=modelo, contents=prompt)
-                status.empty()
-                return response, modelo
-            except Exception as e:
-                ultimo_error = e
-                if not es_error_temporal_modelo(e):
-                    status.empty()
-                    raise RuntimeError(f"ERROR_IA: {e}")
-                espera = min(2 ** intento, 6)
-                status.markdown(f"<div class='hint'>Servicio temporalmente no disponible en {modelo}. Reintentando en {espera} s...</div>", unsafe_allow_html=True)
-                time.sleep(espera)
-    status.empty()
-    if es_error_temporal_modelo(ultimo_error):
-        raise RuntimeError(f"ERROR_TEMPORAL_IA: {ultimo_error}")
-    raise RuntimeError(f"ERROR_IA: {ultimo_error}")
-
-
-def render_metric_card(label, value, tooltip, delta=None):
-    delta_html = f"<div class='metric-delta'>Frente a la anterior: {esc(delta)}</div>" if delta else ""
-    st.markdown(
-        f"""
-        <div class='metric-card'>
-          <div class='metric-head'>
-            <div class='metric-label'>{esc(label)}</div>
-            <div class='tooltip-wrap' tabindex='0' aria-label='Más información sobre {esc(label)}'>
-              <span class='tooltip-icon'>?</span>
-              <div class='tooltip-bubble'>{esc(tooltip)}</div>
-            </div>
-          </div>
-          <div class='metric-value'>{esc(value)}</div>
-          {delta_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_history_table(df):
-    cols = ["fecha_guardado", "periodo", "compania", "total_pagar", "consumo_kwh", "potencia_kw", "impuestos"]
-    labels = {
-        "fecha_guardado": "Fecha",
-        "periodo": "Periodo",
-        "compania": "Compañía",
-        "total_pagar": "Total",
-        "consumo_kwh": "Consumo",
-        "potencia_kw": "Potencia",
-        "impuestos": "Impuestos",
-    }
-    clases = {
-        "fecha_guardado": "col-fecha",
-        "periodo": "col-periodo",
-        "compania": "col-compania",
-        "total_pagar": "col-total",
-        "consumo_kwh": "col-consumo",
-        "potencia_kw": "col-potencia",
-        "impuestos": "col-impuestos",
-    }
-    html = ["<div class='history-table'><table><thead><tr>"]
-    for c in cols:
-        html.append(f"<th class='{clases[c]}'>{labels[c]}</th>")
-    html.append("</tr></thead><tbody>")
-    for _, row in df.iterrows():
-        hash_val = esc(row.get('archivo_hash', ''))
-        fecha_link = f"?accion=cargar_historial&hash={hash_val}" if hash_val else "#"
-        html.append("<tr>")
-        html.append(f"<td class='{clases['fecha_guardado']}'><a class='row-action' href='{fecha_link}'>{esc(fmt_fecha_corta(row['fecha_guardado']))}</a></td>")
-        html.append(f"<td class='{clases['periodo']}'>{esc(normalizar_periodo_corto(row['periodo']))}</td>")
-        html.append(f"<td class='{clases['compania']}'>{esc(normalizar_compania(row['compania']))}</td>")
-        html.append(f"<td class='{clases['total_pagar']}'>{esc(fmt_euro(row['total_pagar']))}</td>")
-        html.append(f"<td class='{clases['consumo_kwh']}'>{esc(fmt_num(row['consumo_kwh'], 'kWh'))}</td>")
-        html.append(f"<td class='{clases['potencia_kw']}'>{esc(fmt_num(row['potencia_kw'], 'kW'))}</td>")
-        html.append(f"<td class='{clases['impuestos']}'>{esc(fmt_euro(row['impuestos']))}</td>")
-        html.append("</tr>")
-    html.append("</tbody></table></div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
-
-
-init_state()
-
-query_params = st.query_params
-if query_params.get("accion") == "borrar_historial":
-    if os.path.exists(HISTORIAL_CSV):
-        os.remove(HISTORIAL_CSV)
-    st.session_state["factura_anterior"] = None
-    reset_current_results()
-    st.session_state["borrar_historial_click"] = True
-    st.query_params.clear()
-
-if query_params.get("accion") == "cargar_historial":
-    hash_hist = query_params.get("hash", "")
-    if hash_hist:
-        factura_hist = buscar_factura_por_hash(hash_hist)
-        if factura_hist:
-            factura_cargada = fila_historial_a_factura(factura_hist)
-            st.session_state["factura_actual"] = factura_cargada
-            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
-            st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
-            st.session_state["factura_anterior"] = None
-    st.query_params.clear()
-
-st.markdown(f"<div class='rz-header'><img src='{LOGO_DATA_URI}' alt='ReciboZen'></div>", unsafe_allow_html=True)
-
-st.markdown("<div class='panel'><div class='section-title'>Sube tu factura</div>", unsafe_allow_html=True)
-uploaded_file = st.file_uploader("Sube tu factura", label_visibility="collapsed", type=["pdf"])
-current_file_hash = None
-if uploaded_file is not None:
-    current_file_hash = obtener_hash_archivo(uploaded_file)
-    if st.session_state.get("last_file_hash") != current_file_hash:
-        reset_current_results()
-        st.session_state["last_uploaded_name"] = uploaded_file.name
-        st.session_state["last_file_hash"] = current_file_hash
-st.markdown("<div class='hint'>Sube un PDF de tu factura para analizarlo.</div></div>", unsafe_allow_html=True)
-
-analizar = st.button("Analizar factura", type="primary", use_container_width=True)
-spinner_placeholder = st.empty()
-
-if uploaded_file and analizar:
-    factura_guardada = buscar_factura_por_hash(current_file_hash)
-    if factura_guardada:
-        factura_cargada = fila_historial_a_factura(factura_guardada)
-        st.session_state["factura_actual"] = factura_cargada
-        st.session_state["audio_b64"] = preparar_audio(factura_cargada.get("guion_audio", "Resumen de la factura."))
-        st.session_state["factura_anterior"] = None
-        st.info("Esta factura ya estaba guardada. Se ha cargado desde el historial sin volver a consultar la IA.")
-    else:
-        spinner_placeholder.markdown(
-            """
-            <div class='spinner-card'>
-              <div class='spinner-dot'></div>
-              <div><strong>Analizando factura</strong><div style='color:#486171;margin-top:.15rem;'>Esto puede tardar unos segundos.</div></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+def analizar_con_ia(texto):
+    """
+    Utiliza Gemini para interpretar la factura de forma humana y didáctica.
+    He mejorado el prompt para que extraiga específicamente la categoría y unidades.
+    """
+    prompt = f"""
+    Actúa como un experto en facturas del hogar. Analiza este texto de una factura:
+    {texto}
+    
+    Extrae la siguiente información en formato JSON puro (sin markdown):
+    {{
+        "compania": "nombre de la empresa",
+        "total": 0.00,
+        "periodo": "rango de fechas",
+        "consumo_valor": 0.00,
+        "unidad_medida": "kWh o m3",
+        "explicacion_sencilla": "Un resumen de 3 frases explicando qué ha pasado este mes sin usar tecnicismos complejos.",
+        "audio_script": "Un guión para leer en voz alta para una persona con discapacidad visual."
+    }}
+    """
+    
+    for modelo in MODELOS_ANALISIS:
         try:
-            time.sleep(0.35)
-            texto_raw = leer_pdf(uploaded_file)
-            extraidos_pdf = extraer_desde_pdf(texto_raw)
-            prompt = construir_prompt(texto_raw)
-            response, modelo_usado = generar_con_fallback(prompt)
-            parsed = parsear_bloques(getattr(response, "text", "") or "")
-            parsed = combinar_datos(parsed, extraidos_pdf)
-            parsed["modelo_usado"] = modelo_usado
-            parsed["archivo_hash"] = current_file_hash
-
-            st.session_state["factura_actual"] = parsed
-            st.session_state["last_file_hash"] = current_file_hash
-            st.session_state["audio_b64"] = preparar_audio(parsed.get("guion_audio", "Resumen de la factura."))
-            historial = guardar_historial(parsed, current_file_hash)
-            st.session_state["factura_anterior"] = historial.iloc[-2].to_dict() if len(historial) >= 2 else None
+            response = client.models.generate_content(model=modelo, contents=prompt)
+            # Limpieza básica para asegurar que solo procesamos JSON
+            clean_json = re.sub(r"```json|```", "", response.text).strip()
+            return pd.read_json(io.StringIO(clean_json), typ="series")
         except Exception as e:
-            reset_current_results()
-            st.session_state["factura_anterior"] = None
-            error_txt = str(e)
-            if "ERROR_TEMPORAL_IA:" in error_txt:
-                st.error("La IA no está disponible en este momento. Revisa tu cuota o vuelve a intentarlo más tarde.")
-                st.caption(error_txt)
-            elif "ERROR_IA:" in error_txt:
-                st.error("La IA no ha podido responder correctamente. Reinténtalo en unos minutos.")
-                st.caption(error_txt)
-            else:
-                st.error("No se pudo analizar la factura por un error inesperado.")
-                st.caption(error_txt)
-        finally:
-            spinner_placeholder.empty()
+            continue
+    return None
 
-factura = st.session_state.get("factura_actual")
-anterior = st.session_state.get("factura_anterior")
+# =============================================================================
+# INTERFAZ DE USUARIO (LOGOTIPO Y CARGA)
+# =============================================================================
 
-if factura:
-    st.markdown("<div class='panel'><div class='section-title'>Datos de esta factura</div>", unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div class='data-grid'>
-          <div class='data-card'><div class='data-label'>Periodo</div><div class='data-value'>{esc(factura.get('periodo', 'No detectado'))}</div></div>
-          <div class='data-card'><div class='data-label'>Compañía</div><div class='data-value'>{esc(normalizar_compania(factura.get('compania', 'No detectada')))}</div></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+# Header con Logo y Eslogan
+col_logo, col_tit = st.columns([1, 4])
+with col_logo:
+    if os.path.exists("recibozen-logo.svg"):
+        st.image("recibozen-logo.svg", width=100)
+    else:
+        st.title("🧾")
+with col_tit:
+    st.markdown("<h1 style='margin-bottom:0;'>ReciboZen</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:var(--muted); font-size:1.1rem;'>Tus facturas, ahora claras como el agua.</p>", unsafe_allow_html=True)
+
+# Sección de Carga de Archivos
+with st.container():
+    st.markdown("<div class='panel'>", unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Sube tu factura (PDF)", type=["pdf"])
     st.markdown("</div>", unsafe_allow_html=True)
-    if factura.get("modelo_usado"):
-        st.caption(f"Origen de los datos: {factura.get('modelo_usado')}")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        render_metric_card(
-            "Total a pagar",
-            fmt_euro(factura.get("total_pagar")),
-            factura.get("explicacion_total"),
-            calcular_delta(factura.get("total_pagar"), anterior.get("total_pagar") if anterior else None, "€") if anterior else None,
-        )
-        render_metric_card(
-            "Consumo",
-            fmt_num(factura.get("consumo_kwh"), "kWh"),
-            factura.get("explicacion_consumo"),
-            calcular_delta(factura.get("consumo_kwh"), anterior.get("consumo_kwh") if anterior else None, "kWh") if anterior else None,
-        )
-    with c2:
-        render_metric_card(
-            "Potencia contratada",
-            fmt_num(factura.get("potencia_kw"), "kW"),
-            factura.get("explicacion_potencia"),
-            calcular_delta(factura.get("potencia_kw"), anterior.get("potencia_kw") if anterior else None, "kW") if anterior else None,
-        )
-        render_metric_card(
-            "Impuestos",
-            fmt_euro(factura.get("impuestos")),
-            factura.get("explicacion_impuestos"),
-            calcular_delta(factura.get("impuestos"), anterior.get("impuestos") if anterior else None, "€") if anterior else None,
-        )
+# Lógica principal de ejecución al subir un archivo
+if uploaded_file:
+    # Generamos un hash único para evitar duplicados en el historial
+    file_bytes = uploaded_file.getvalue()
+    file_hash = hashlib.md5(file_bytes).hexdigest()
+    
+    # Comprobar si ya existe en el historial para no gastar API innecesariamente
+    hist_actual = asegurar_columnas_historial(cargar_historial())
+    existe = hist_actual[hist_actual["archivo_hash"] == file_hash]
+    
+    if not existe.empty:
+        # Recuperar datos del historial si ya existe
+        data = existe.iloc[0]
+        st.info("Esta factura ya estaba en tu historial. Recuperando datos...")
+    else:
+        with st.spinner("Analizando tu factura con IA..."):
+            texto_extraido = extraer_texto_pdf(uploaded_file)
+            res = analizar_con_ia(texto_extraido)
+            
+            if res is not None:
+                categoria = detectar_categoria(texto_extraido)
+                
+                # Generar Audio con gTTS
+                tts = gTTS(text=res['audio_script'], lang='es')
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                audio_b64 = base64.b64encode(fp.getvalue()).decode()
+                
+                # Crear nueva fila para el historial
+                nueva_fila = {
+                    "archivo_hash": file_hash,
+                    "fecha_guardado": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "categoria": categoria,
+                    "periodo": res['periodo'],
+                    "compania": res['compania'],
+                    "total_pagar": res['total'],
+                    "consumo_principal": res['consumo_valor'],
+                    "unidad": res['unidad_medida'],
+                    "resumen_didactico": res['explicacion_sencilla'],
+                    "audio_b64": audio_b64
+                }
+                
+                # Guardar en CSV de forma segura
+                hist_actual = pd.concat([hist_actual, pd.DataFrame([nueva_fila])], ignore_index=True)
+                hist_actual.to_csv(HISTORIAL_CSV, index=False)
+                data = nueva_fila
+            else:
+                st.error("No hemos podido interpretar esta factura. Inténtalo de nuevo.")
+                st.stop()
 
-    st.markdown("<div class='audio-panel'><div class='audio-title'>Escuchar resumen</div><div class='audio-actions'>", unsafe_allow_html=True)
-    cola, colb = st.columns(2, gap="medium")
-    with cola:
-        if st.button("Escuchar", key="btn_escuchar", use_container_width=True):
-            st.session_state["reproducir"] = True
-    with colb:
-        if st.button("Parar", key="btn_parar", use_container_width=True):
-            st.session_state["reproducir"] = False
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    # MOSTRAR RESULTADO DEL ANÁLISIS ACTUAL
+    st.markdown(f"""
+    <div class='panel'>
+        <div class='badge badge-{data['categoria'].lower()}'>{data['categoria']}</div>
+        <h2>{data['total_pagar']} €</h2>
+        <p><b>Compañía:</b> {data['compania']}<br>
+        <b>Periodo:</b> {data['periodo']}<br>
+        <b>Consumo:</b> {data['consumo_principal']} {data['unidad']}</p>
+        <hr style='border: 0; border-top: 1px solid var(--line); margin: 20px 0;'>
+        <p style='font-size: 1.1rem; line-height: 1.5;'>{data['resumen_didactico']}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Reproductor de Audio accesible
+    st.audio(base64.b64decode(data['audio_b64']), format="audio/mp3")
 
-    if st.session_state.get("reproducir") and st.session_state.get("audio_b64"):
-        st.components.v1.html(
-            f"<audio autoplay><source src='data:audio/mp3;base64,{st.session_state['audio_b64']}' type='audio/mp3'></audio>",
-            height=0,
-        )
+# =============================================================================
+# VISUALIZACIÓN DEL HISTORIAL POR CATEGORÍAS
+# =============================================================================
 
-hist = deduplicar_historial(asegurar_columnas_historial(cargar_historial()))
-if not hist.empty:
-    if os.path.exists(HISTORIAL_CSV):
-        hist.to_csv(HISTORIAL_CSV, index=False)
-    hist_sorted = hist.sort_values("fecha_guardado", ascending=False).reset_index(drop=True)
-    st.markdown("<div class='panel'><div class='section-title'>Historial de facturas guardadas</div>", unsafe_allow_html=True)
-    render_history_table(hist_sorted)
-    st.markdown("<div class='history-note'>Al analizar una factura, se guarda toda su información para poder recuperarla desde el historial sin volver a consumir la API.</div>", unsafe_allow_html=True)
+st.markdown("<hr style='margin: 40px 0;'>", unsafe_allow_html=True)
+st.subheader("Tu Histórico")
+
+hist_disp = asegurar_columnas_historial(cargar_historial())
+
+if not hist_disp.empty:
+    # Ordenar por fecha más reciente
+    hist_disp = hist_disp.sort_values("fecha_guardado", ascending=False)
+    
+    # Creación de pestañas para organizar por tipo de suministro
+    tab_luz, tab_agua, tab_gas, tab_otros = st.tabs(["💡 Luz", "💧 Agua", "🔥 Gas", "📂 Otros"])
+    
+    def renderizar_lista_categoria(df_cat):
+        """Renderiza una lista simplificada para cada categoría."""
+        if df_cat.empty:
+            st.write("No hay facturas en esta categoría.")
+        else:
+            for _, fila in df_cat.iterrows():
+                with st.expander(f"{fila['fecha_guardado']} - {fila['compania']} ({fila['total_pagar']} €)"):
+                    st.write(f"**Periodo:** {fila['periodo']}")
+                    st.write(f"**Consumo:** {fila['consumo_principal']} {fila['unidad']}")
+                    st.write(fila['resumen_didactico'])
+                    st.audio(base64.b64decode(fila['audio_b64']), format="audio/mp3")
+
+    with tab_luz:
+        renderizar_lista_categoria(hist_disp[hist_disp['categoria'] == 'Luz'])
+    
+    with tab_agua:
+        renderizar_lista_categoria(hist_disp[hist_disp['categoria'] == 'Agua'])
+        
+    with tab_gas:
+        renderizar_lista_categoria(hist_disp[hist_disp['categoria'] == 'Gas'])
+        
+    with tab_otros:
+        renderizar_lista_categoria(hist_disp[hist_disp['categoria'] == 'Otros'])
+else:
+    st.info("Aún no tienes facturas guardadas. Sube la primera para empezar tu histórico.")
+
+# =============================================================================
+# BOTONES DE ACCIÓN FINAL
+# =============================================================================
+if not hist_disp.empty:
     st.download_button(
-        "Descargar historial facturas",
-        data=hist_sorted.to_csv(index=False).encode("utf-8"),
-        file_name="recibozen_historial.csv",
+        label="Exportar datos a Excel/CSV",
+        data=hist_disp.to_csv(index=False).encode('utf-8'),
+        file_name="historial_recibozen.csv",
         mime="text/csv",
-        use_container_width=True,
     )
-    st.markdown("<div class='history-danger-wrap'><a class='history-danger-btn' href='?accion=borrar_historial'>Borrar historial</a></div></div>", unsafe_allow_html=True)
-
-if st.session_state.get("borrar_historial_click"):
-    st.success("Historial borrado correctamente.")
-    st.session_state["borrar_historial_click"] = False
