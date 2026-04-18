@@ -635,22 +635,32 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
         col_idx = 0
 
         # clave única por fila y por tabla, usando el título como prefijo
-        btn_key = f"hist_{(titulo or 'global').lower()}_{idx}"
+        btn_key = f"hist_{titulo or 'global'}_{row.get('archivo_hash', idx)}"
 
         with columnas[col_idx]:
-            if st.button(
-                fmt_fecha_corta(row["fecha_guardado"]),
-                key=btn_key,
-                use_container_width=True,
-            ):
-                factura_cargada = fila_historial_a_factura(row.to_dict())
-                st.session_state["factura_actual"] = factura_cargada
-                st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
-                st.session_state["audio_b64"] = preparar_audio(
-                    factura_cargada.get("guion_audio", "Resumen de la factura.")
-                )
-                st.session_state["factura_anterior"] = None
-                st.rerun()
+    if st.button(
+        fmt_fecha_corta(row["fecha_guardado"]),
+        key=btn_key,
+        use_container_width=True,
+    ):
+        hash_hist = str(row.get("archivo_hash", "") or "").strip()
+        factura_cargada = None
+
+        if hash_hist:
+            factura_hist = buscar_factura_por_hash(hash_hist)
+            if factura_hist:
+                factura_cargada = fila_historial_a_factura(factura_hist)
+
+        if not factura_cargada:
+            factura_cargada = fila_historial_a_factura(row.to_dict())
+
+        st.session_state["factura_actual"] = factura_cargada
+        st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "") if factura_cargada else ""
+        st.session_state["audio_b64"] = preparar_audio(
+            (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
+        )
+        st.session_state["factura_anterior"] = None
+        st.rerun()
         col_idx += 1
 
         # Resto de columnas
