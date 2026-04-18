@@ -612,11 +612,13 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
         columnas = st.columns(len(cols))
         col_idx = 0
 
-        # Fecha (botón verde que carga la factura)
+        # Fecha (botón que carga la factura)
+        btn_key = f"hist_{(titulo or 'global').lower()}_{idx}"
+
         with columnas[col_idx]:
             if st.button(
                 fmt_fecha_corta(row["fecha_guardado"]),
-                key=f"hist_fecha_{idx}",
+                key=btn_key,
                 use_container_width=True,
             ):
                 factura_cargada = fila_historial_a_factura(row.to_dict())
