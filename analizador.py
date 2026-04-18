@@ -606,15 +606,14 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
         st.markdown("No hay facturas guardadas en esta sección.")
         return
 
-    # Columnas a mostrar
+    # Columnas a mostrar (sin Potencia ni Impuestos)
     cols = [
-    "fecha_guardado",
-    "periodo",
-    "compania",
-    "categoria" if mostrar_tipo else None,
-    "total_pagar",
-    "consumo_kwh",
-    # quitamos "potencia_kw" e "impuestos" de la tabla
+        "fecha_guardado",
+        "periodo",
+        "compania",
+        "categoria" if mostrar_tipo else None,
+        "total_pagar",
+        "consumo_kwh",
     ]
     cols = [c for c in cols if c is not None]
 
@@ -625,38 +624,36 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
         "categoria": "Tipo",
         "total_pagar": "Total",
         "consumo_kwh": "Consumo",
-        "potencia_kw": "Potencia",
-        "impuestos": "Impuestos",
     }
 
     if titulo:
         st.markdown(f"#### {titulo}")
 
     # Una fila por factura
-for idx, row in df.iterrows():
-    columnas = st.columns(len(cols))
-    col_idx = 0
+    for idx, row in df.iterrows():
+        columnas = st.columns(len(cols))
+        col_idx = 0
 
-    # clave única por fila y por tabla, usando el título como prefijo
-    btn_key = f"hist_{(titulo or 'global').lower()}_{idx}"
+        # clave única por fila y por tabla, usando el título como prefijo
+        btn_key = f"hist_{(titulo or 'global').lower()}_{idx}"
 
-    with columnas[col_idx]:
-        if st.button(
-            fmt_fecha_corta(row["fecha_guardado"]),
-            key=btn_key,
-            use_container_width=True,
-        ):
-            factura_cargada = fila_historial_a_factura(row.to_dict())
-            st.session_state["factura_actual"] = factura_cargada
-            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
-            st.session_state["audio_b64"] = preparar_audio(
-                factura_cargada.get("guion_audio", "Resumen de la factura.")
-            )
-            st.session_state["factura_anterior"] = None
-            st.rerun()
-    col_idx += 1
+        with columnas[col_idx]:
+            if st.button(
+                fmt_fecha_corta(row["fecha_guardado"]),
+                key=btn_key,
+                use_container_width=True,
+            ):
+                factura_cargada = fila_historial_a_factura(row.to_dict())
+                st.session_state["factura_actual"] = factura_cargada
+                st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
+                st.session_state["audio_b64"] = preparar_audio(
+                    factura_cargada.get("guion_audio", "Resumen de la factura.")
+                )
+                st.session_state["factura_anterior"] = None
+                st.rerun()
+        col_idx += 1
 
-        # Resto de campos solo como texto
+        # Resto de columnas
         for col in cols[1:]:
             val = row.get(col, "")
             if col == "periodo":
@@ -669,10 +666,6 @@ for idx, row in df.iterrows():
                 texto = fmt_euro(val)
             elif col == "consumo_kwh":
                 texto = fmt_num(val, "kWh")
-            elif col == "potencia_kw":
-                texto = fmt_num(val, "kW")
-            elif col == "impuestos":
-                texto = fmt_euro(val)
             else:
                 texto = str(val)
 
