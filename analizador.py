@@ -112,7 +112,7 @@ def init_state():
         "borrar_historial_click": False,
     }
     for k, v in defaults.items():
-        if k not in st.session_state:
+        if k not in st.session_state:  # <- importante que sea "if k not in"
             st.session_state[k] = v
 
 
@@ -633,28 +633,28 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
         st.markdown(f"#### {titulo}")
 
     # Una fila por factura
-    for idx, row in df.iterrows():
-        columnas = st.columns(len(cols))
-        col_idx = 0
+for idx, row in df.iterrows():
+    columnas = st.columns(len(cols))
+    col_idx = 0
 
-        # Fecha (botón que carga la factura)
-        btn_key = f"hist_{(titulo or 'global').lower()}_{idx}"
+    # clave única por fila y por tabla, usando el título como prefijo
+    btn_key = f"hist_{(titulo or 'global').lower()}_{idx}"
 
-        with columnas[col_idx]:
-            if st.button(
-                fmt_fecha_corta(row["fecha_guardado"]),
-                key=btn_key,
-                use_container_width=True,
-            ):
-                factura_cargada = fila_historial_a_factura(row.to_dict())
-                st.session_state["factura_actual"] = factura_cargada
-                st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
-                st.session_state["audio_b64"] = preparar_audio(
-                    factura_cargada.get("guion_audio", "Resumen de la factura.")
-                )
-                st.session_state["factura_anterior"] = None
-                st.rerun()
-        col_idx += 1
+    with columnas[col_idx]:
+        if st.button(
+            fmt_fecha_corta(row["fecha_guardado"]),
+            key=btn_key,
+            use_container_width=True,
+        ):
+            factura_cargada = fila_historial_a_factura(row.to_dict())
+            st.session_state["factura_actual"] = factura_cargada
+            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "")
+            st.session_state["audio_b64"] = preparar_audio(
+                factura_cargada.get("guion_audio", "Resumen de la factura.")
+            )
+            st.session_state["factura_anterior"] = None
+            st.rerun()
+    col_idx += 1
 
         # Resto de campos solo como texto
         for col in cols[1:]:
@@ -743,6 +743,7 @@ current_file_hash = None
 if uploaded_file is not None:
     current_file_hash = obtener_hash_archivo(uploaded_file)
     if st.session_state.get("last_file_hash") != current_file_hash:
+        # Estamos analizando un archivo nuevo: limpiamos los resultados anteriores
         reset_current_results()
         st.session_state["last_uploaded_name"] = uploaded_file.name
         st.session_state["last_file_hash"] = current_file_hash
@@ -803,6 +804,11 @@ if uploaded_file and analizar:
 
 factura = st.session_state.get("factura_actual")
 anterior = st.session_state.get("factura_anterior")
+
+
+
+# depuracion (eliminar)
+st.write("DEBUG factura_actual:", factura)
 
 if factura:
     st.markdown("<div class='panel'><div class='section-title'>Datos de esta factura</div>", unsafe_allow_html=True)
