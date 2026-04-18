@@ -795,12 +795,11 @@ if uploaded_file and analizar:
         finally:
             spinner_placeholder.empty()
 
-factura = st.session_state.get("factura_actual")
-anterior = st.session_state.get("factura_anterior")
+write
 
 
 
-# depuracion (eliminar)
+
 st.write("DEBUG factura_actual:", factura)
 
 if factura:
