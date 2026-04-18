@@ -566,12 +566,21 @@ def render_metric_card(label, value, tooltip, delta=None):
 # -------------------------------
 
 def render_history_table(df, titulo=None, mostrar_tipo=True):
-    if df.empty:
-        st.markdown("No hay facturas guardadas todavía.")
-        return
-
+    """
+    Pinta una tabla de historial.
+    - df: DataFrame ya filtrado.
+    - titulo: texto opcional para mostrar encima de la tabla.
+    - mostrar_tipo: si True, incluye la columna 'Tipo' (categoria).
+    """
     df = asegurar_columnas_historial(df)
 
+    if df.empty:
+        if titulo:
+            st.markdown(f"#### {titulo}")
+        st.markdown("No hay facturas guardadas en esta sección.")
+        return
+
+    # Columnas a mostrar
     cols = [
         "fecha_guardado",
         "periodo",
@@ -598,12 +607,13 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
     if titulo:
         st.markdown(f"#### {titulo}")
 
+    # Una fila por factura
     for idx, row in df.iterrows():
-        c = st.columns(len(cols))
+        columnas = st.columns(len(cols))
         col_idx = 0
 
-        # Fecha (clicable)
-        with c[col_idx]:
+        # Fecha (botón verde que carga la factura)
+        with columnas[col_idx]:
             if st.button(
                 fmt_fecha_corta(row["fecha_guardado"]),
                 key=f"hist_fecha_{idx}",
@@ -619,7 +629,7 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
                 st.rerun()
         col_idx += 1
 
-        # Resto de columnas
+        # Resto de campos solo como texto
         for col in cols[1:]:
             val = row.get(col, "")
             if col == "periodo":
@@ -639,12 +649,17 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
             else:
                 texto = str(val)
 
-            with c[col_idx]:
+            with columnas[col_idx]:
                 st.markdown(f"**{labels[col]}**<br>{texto}", unsafe_allow_html=True)
             col_idx += 1
 
 
 def render_historial_completo_y_por_secciones():
+    """
+    Muestra:
+    - Una tabla única con todas las facturas (incluye columna 'Tipo').
+    - Luego tablas separadas para Luz, Agua y Teléfono.
+    """
     hist = deduplicar_historial(cargar_historial())
     if hist.empty:
         st.markdown("No hay facturas guardadas todavía.")
@@ -656,9 +671,14 @@ def render_historial_completo_y_por_secciones():
     render_history_table(hist_sorted, titulo="Histórico completo", mostrar_tipo=True)
 
     # Vistas por secciones
-    categorias = [("Luz", "Facturas de Luz"), ("Agua", "Facturas de Agua"), ("Teléfono", "Facturas de Teléfono")]
-    for cat, titulo in categorias:
-        sub = hist_sorted[hist_sorted["categoria"] == cat]
+    secciones = [
+        ("Luz", "Facturas de Luz"),
+        ("Agua", "Facturas de Agua"),
+        ("Teléfono", "Facturas de Teléfono"),
+    ]
+
+    for categoria, titulo in secciones:
+        sub = hist_sorted[hist_sorted["categoria"] == categoria]
         if sub.empty:
             continue
         st.markdown("---")
@@ -820,18 +840,33 @@ hist = deduplicar_historial(asegurar_columnas_historial(cargar_historial()))
 if not hist.empty:
     if os.path.exists(HISTORIAL_CSV):
         hist.to_csv(HISTORIAL_CSV, index=False)
-    hist_sorted = hist.sort_values("fecha_guardado", ascending=False).reset_index(drop=True)
-    st.markdown("<div class='panel'><div class='section-title'>Historial de facturas guardadas</div>", unsafe_allow_html=True)
-    render_history_table(hist_sorted)
-    st.markdown("<div class='history-note'>Al analizar una factura, se guarda toda su información para poder recuperarla desde el historial sin volver a consumir la API.</div>", unsafe_allow_html=True)
+
+    st.markdown(
+        "<div class='panel'><div class='section-title'>Historial de facturas guardadas</div>",
+        unsafe_allow_html=True,
+    )
+
+    # NUEVO: histórico completo + secciones Luz / Agua / Teléfono
+    render_historial_completo_y_por_secciones()
+
+    st.markdown(
+        "<div class='history-note'>Al analizar una factura, se guarda toda su información para poder recuperarla desde el historial sin volver a consumir la API.</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Descarga del CSV sigue igual
     st.download_button(
         "Descargar historial facturas",
-        data=hist_sorted.to_csv(index=False).encode("utf-8"),
+        data=hist.to_csv(index=False).encode("utf-8"),
         file_name="recibozen_historial.csv",
         mime="text/csv",
         use_container_width=True,
     )
-    st.markdown("<div class='history-danger-wrap'><a class='history-danger-btn' href='?accion=borrar_historial'>Borrar historial</a></div></div>", unsafe_allow_html=True)
+
+    st.markdown(
+        "<div class='history-danger-wrap'><a class='history-danger-btn' href='?accion=borrar_historial'>Borrar historial</a></div></div>",
+        unsafe_allow_html=True,
+    )
 
 if st.session_state.get("borrar_historial_click"):
     st.success("Historial borrado correctamente.")
