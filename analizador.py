@@ -797,7 +797,7 @@ if uploaded_file and analizar:
 
 
 
-sfactura = st.session_state.get("factura_actual")
+factura = st.session_state.get("factura_actual")
 anterior = st.session_state.get("factura_anterior")
 
 st.write("DEBUG factura_actual:", factura)
