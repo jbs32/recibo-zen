@@ -795,9 +795,6 @@ if uploaded_file and analizar:
         finally:
             spinner_placeholder.empty()
 
-write
-
-
 
 
 st.write("DEBUG factura_actual:", factura)
