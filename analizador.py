@@ -202,6 +202,32 @@ def normalizar_periodo_corto(periodo):
                 out.append(f"{int(d):02d}/{mm}/{yy}")
         if len(out) == 2:
             return f"{out[0]} - {out[1]}"
+
+            # Caso: "Enero a Marzo de 2026" → "01/01/2026 - 31/03/2026"
+            patron_mes_a_mes = r"([a-záéíóú]+)\s+a\s+([a-záéíóú]+)\s+de\s+(\d{4})"
+            m2 = re.search(patron_mes_a_mes, low)
+            if m2:
+                mes_ini, mes_fin, anio = m2.groups()
+                mm_ini = meses.get(mes_ini, "01")
+                mm_fin = meses.get(mes_fin, "12")
+
+                # Días aproximados (no hace falta exactitud de calendario)
+                dias_mes = {
+                    "01": "01", "02": "01", "03": "01", "04": "01", "05": "01", "06": "01",
+                    "07": "01", "08": "01", "09": "01", "10": "01", "11": "01", "12": "01",
+                }
+                dias_fin = {
+                    "01": "31", "02": "28", "03": "31", "04": "30", "05": "31", "06": "30",
+                    "07": "31", "08": "31", "09": "30", "10": "31", "11": "30", "12": "31",
+                }
+
+                d_ini = dias_mes.get(mm_ini, "01")
+                d_fin = dias_fin.get(mm_fin, "30")
+
+                inicio = f"{d_ini}/{mm_ini}/{anio}"
+                fin = f"{d_fin}/{mm_fin}/{anio}"
+                return f"{inicio} - {fin}"
+
     return t
 
 
@@ -582,14 +608,13 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
 
     # Columnas a mostrar
     cols = [
-        "fecha_guardado",
-        "periodo",
-        "compania",
-        "categoria" if mostrar_tipo else None,
-        "total_pagar",
-        "consumo_kwh",
-        "potencia_kw",
-        "impuestos",
+    "fecha_guardado",
+    "periodo",
+    "compania",
+    "categoria" if mostrar_tipo else None,
+    "total_pagar",
+    "consumo_kwh",
+    # quitamos "potencia_kw" e "impuestos" de la tabla
     ]
     cols = [c for c in cols if c is not None]
 
