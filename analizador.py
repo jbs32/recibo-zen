@@ -185,63 +185,100 @@ def normalizar_compania(texto):
 
 
 def normalizar_periodo_corto(periodo):
+    import calendar
+    import re
+
     if not periodo or str(periodo).strip().lower() == "no detectado":
         return "No detectado"
+
     t = re.sub(r"\s+", " ", str(periodo)).strip()
-    m = re.findall(r"\d{1,2}/\d{1,2}/\d{2,4}", t)
-    if len(m) >= 2:
-        def norm_fecha(x):
-            d, mth, y = x.split("/")
-            if len(y) == 2:
-                y = "20" + y
-            return f"{int(d):02d}/{int(mth):02d}/{y}"
-        return f"{norm_fecha(m[0])} - {norm_fecha(m[1])}"
+    low = t.lower()
 
     meses = {
-        'enero':'01','febrero':'02','marzo':'03','abril':'04','mayo':'05','junio':'06',
-        'julio':'07','agosto':'08','septiembre':'09','setiembre':'09','octubre':'10','noviembre':'11','diciembre':'12'
+        "enero": 1,
+        "febrero": 2,
+        "marzo": 3,
+        "abril": 4,
+        "mayo": 5,
+        "junio": 6,
+        "julio": 7,
+        "agosto": 8,
+        "septiembre": 9,
+        "setiembre": 9,
+        "octubre": 10,
+        "noviembre": 11,
+        "diciembre": 12,
     }
-    low = t.lower()
-    patron = r"(\d{1,2}) de ([a-záéíóú]+)(?: de (\d{4}))?"
-    fechas = re.findall(patron, low)
+
+    def fmt_fecha(dia, mes, anio):
+        return f"{int(dia):02d}/{int(mes):02d}/{str(anio)[-2:]}"
+
+    # 1) Caso: 08/01/2026 - 05/02/2026  o 08/01/26 a 05/02/26
+    fechas = re.findall(r"(\d{1,2})/(\d{1,2})/(\d{2,4})", t)
     if len(fechas) >= 2:
-        year_final = fechas[-1][2] if fechas[-1][2] else ""
-        out = []
-        for i, (d, mes, y) in enumerate(fechas[:2]):
-            yy = y or year_final
-            mm = meses.get(mes, '01')
-            if yy:
-                out.append(f"{int(d):02d}/{mm}/{yy}")
-        if len(out) == 2:
-            return f"{out[0]} - {out[1]}"
+        d1, m1, y1 = fechas[0]
+        d2, m2, y2 = fechas[1]
 
-            # Caso: "Enero a Marzo de 2026" → "01/01/2026 - 31/03/2026"
-            patron_mes_a_mes = r"([a-záéíóú]+)\s+a\s+([a-záéíóú]+)\s+de\s+(\d{4})"
-            m2 = re.search(patron_mes_a_mes, low)
-            if m2:
-                mes_ini, mes_fin, anio = m2.groups()
-                mm_ini = meses.get(mes_ini, "01")
-                mm_fin = meses.get(mes_fin, "12")
+        if len(y1) == 2:
+            y1 = "20" + y1
+        if len(y2) == 2:
+            y2 = "20" + y2
 
-                # Días aproximados (no hace falta exactitud de calendario)
-                dias_mes = {
-                    "01": "01", "02": "01", "03": "01", "04": "01", "05": "01", "06": "01",
-                    "07": "01", "08": "01", "09": "01", "10": "01", "11": "01", "12": "01",
-                }
-                dias_fin = {
-                    "01": "31", "02": "28", "03": "31", "04": "30", "05": "31", "06": "30",
-                    "07": "31", "08": "31", "09": "30", "10": "31", "11": "30", "12": "31",
-                }
+        return f"{fmt_fecha(d1, m1, y1)} - {fmt_fecha(d2, m2, y2)}"
 
-                d_ini = dias_mes.get(mm_ini, "01")
-                d_fin = dias_fin.get(mm_fin, "30")
+    # 2) Caso: 01 de marzo al 31 de marzo de 2026
+    patron_dia_mes = r"(\d{1,2}) de ([a-záéíóú]+)(?: de (\d{4}))?"
+    fechas_texto = re.findall(patron_dia_mes, low)
 
-                inicio = f"{d_ini}/{mm_ini}/{anio}"
-                fin = f"{d_fin}/{mm_fin}/{anio}"
-                return f"{inicio} - {fin}"
+    if len(fechas_texto) >= 2:
+        d1, mes1, y1 = fechas_texto[0]
+        d2, mes2, y2 = fechas_texto[1]
+
+        anio_final = y2 or y1
+        y1 = y1 or anio_final
+        y2 = y2 or anio_final
+
+        m1 = meses.get(mes1)
+        m2 = meses.get(mes2)
+
+        if m1 and m2 and y1 and y2:
+            return f"{fmt_fecha(d1, m1, y1)} - {fmt_fecha(d2, m2, y2)}"
+
+    # 3) Caso: Marzo 2026
+    patron_mes_anio = r"^([a-záéíóú]+)\s+(\d{4})$"
+    m = re.match(patron_mes_anio, low)
+    if m:
+        mes_txt, anio = m.groups()
+        mes_num = meses.get(mes_txt)
+        if mes_num:
+            ultimo_dia = calendar.monthrange(int(anio), mes_num)[1]
+            return f"{fmt_fecha(1, mes_num, anio)} - {fmt_fecha(ultimo_dia, mes_num, anio)}"
+
+    # 4) Caso: Noviembre 2025 a Febrero 2026
+    patron_mes_a_mes = r"^([a-záéíóú]+)\s+(\d{4})\s+a\s+([a-záéíóú]+)\s+(\d{4})$"
+    m = re.match(patron_mes_a_mes, low)
+    if m:
+        mes_ini_txt, anio_ini, mes_fin_txt, anio_fin = m.groups()
+        mes_ini = meses.get(mes_ini_txt)
+        mes_fin = meses.get(mes_fin_txt)
+
+        if mes_ini and mes_fin:
+            ultimo_dia = calendar.monthrange(int(anio_fin), mes_fin)[1]
+            return f"{fmt_fecha(1, mes_ini, anio_ini)} - {fmt_fecha(ultimo_dia, mes_fin, anio_fin)}"
+
+    # 5) Caso: Enero a Marzo de 2026
+    patron_mes_a_mes_mismo_anio = r"^([a-záéíóú]+)\s+a\s+([a-záéíóú]+)\s+de\s+(\d{4})$"
+    m = re.match(patron_mes_a_mes_mismo_anio, low)
+    if m:
+        mes_ini_txt, mes_fin_txt, anio = m.groups()
+        mes_ini = meses.get(mes_ini_txt)
+        mes_fin = meses.get(mes_fin_txt)
+
+        if mes_ini and mes_fin:
+            ultimo_dia = calendar.monthrange(int(anio), mes_fin)[1]
+            return f"{fmt_fecha(1, mes_ini, anio)} - {fmt_fecha(ultimo_dia, mes_fin, anio)}"
 
     return t
-
 
 def fmt_fecha_corta(valor):
     if not valor:
