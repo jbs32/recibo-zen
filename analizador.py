@@ -748,20 +748,19 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
     if titulo:
         st.markdown(f"#### {titulo}")
 
-    # Siempre 6 columnas: Fecha, Periodo, Compañía, Tipo, Total, Consumo.
-    # Si mostrar_tipo es False, dejamos la columna Tipo vacía.
+    # Siempre 6 columnas: Detalle, Periodo, Compañía, Tipo, Total, Consumo
+    # Si mostrar_tipo es False, la columna Tipo se deja vacía
     for i, (_, row) in enumerate(df.iterrows()):
         hash_hist = str(row.get("archivo_hash", "") or "").strip()
-        fecha_txt = fmt_fecha_corta(row.get("fecha_guardado", ""))
 
         with st.container():
             cols = st.columns([1.0, 2.2, 1.8, 1.2, 1.2, 1.2])
 
             btn_key = f"hist_btn_{(titulo or 'global')}_{i}_{hash_hist}"
 
-            # Columna 0: botón con la fecha
+            # Columna 0: botón Detalle
             with cols[0]:
-                if st.button(fecha_txt, key=btn_key, use_container_width=True):
+                if st.button("Detalle", key=btn_key, use_container_width=True):
                     factura_cargada = None
 
                     if hash_hist:
