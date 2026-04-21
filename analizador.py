@@ -397,20 +397,53 @@ def deduplicar_historial(df):
     if df.empty:
         return df
 
-    tmp = asegurar_columnas_historial(df)
+    tmp = asegurar_columnas_historial(df).copy()
 
-    tmp["_hash_norm"] = tmp["archivo_hash"].astype(str).str.strip()
-    tmp["_periodo_norm"] = tmp["periodo"].astype(str).str.strip().str.lower()
+    # Normalizamos campos para poder comparar bien
+    tmp["archivo_hash"] = tmp["archivo_hash"].fillna("").astype(str).str.strip()
+    tmp["periodo"] = tmp["periodo"].fillna("No detectado").astype(str).str.strip()
+    tmp["compania"] = tmp["compania"].fillna("No detectada").apply(normalizar_compania)
+    tmp["categoria"] = tmp["categoria"].fillna("Otro").astype(str).str.strip()
+
+    # Fecha a datetime para quedarnos con la fila más reciente
+    tmp["_fecha_dt"] = pd.to_datetime(tmp["fecha_guardado"], errors="coerce")
+
+    # Campos auxiliares de comparación
+    tmp["_hash_norm"] = tmp["archivo_hash"]
+    tmp["_periodo_norm"] = tmp["periodo"].str.lower()
+    tmp["_compania_norm"] = tmp["compania"].str.lower()
+    tmp["_categoria_norm"] = tmp["categoria"].str.lower()
     tmp["_total_norm"] = pd.to_numeric(tmp["total_pagar"], errors="coerce").round(2)
 
+    # Ordenamos por fecha para que el más reciente quede al final
+    tmp = tmp.sort_values("_fecha_dt", ascending=True, na_position="last")
+
+    # Si hay hash, deduplicamos por hash, quedándonos con la ÚLTIMA fila
     has_hash = tmp["_hash_norm"].ne("")
-    con_hash = tmp[has_hash].drop_duplicates(subset=["_hash_norm"], keep="first")
+    con_hash = tmp[has_hash].drop_duplicates(subset=["_hash_norm"], keep="last")
+
+    # Si no hay hash, usamos una combinación razonable y nos quedamos con la ÚLTIMA
     sin_hash = tmp[~has_hash].drop_duplicates(
-        subset=["_periodo_norm", "_total_norm"], keep="first"
+        subset=["_periodo_norm", "_compania_norm", "_categoria_norm", "_total_norm"],
+        keep="last"
     )
 
     tmp = pd.concat([con_hash, sin_hash], ignore_index=True)
-    return tmp.drop(columns=["_hash_norm", "_periodo_norm", "_total_norm"], errors="ignore")
+
+    # Orden final del histórico: más reciente arriba
+    tmp = tmp.sort_values("_fecha_dt", ascending=False, na_position="last").reset_index(drop=True)
+
+    return tmp.drop(
+        columns=[
+            "_fecha_dt",
+            "_hash_norm",
+            "_periodo_norm",
+            "_compania_norm",
+            "_categoria_norm",
+            "_total_norm",
+        ],
+        errors="ignore",
+    )
 
 
 def buscar_factura_por_hash(file_hash):
