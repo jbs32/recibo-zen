@@ -650,82 +650,76 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
         st.markdown("No hay facturas guardadas en esta sección.")
         return
 
-    # Columnas a mostrar (sin Potencia ni Impuestos)
-    cols = [
-        "fecha_guardado",
-        "periodo",
-        "compania",
-        "categoria" if mostrar_tipo else None,
-        "total_pagar",
-        "consumo_kwh",
-    ]
-    cols = [c for c in cols if c is not None]
-
-    labels = {
-        "fecha_guardado": "Fecha",
-        "periodo": "Periodo",
-        "compania": "Compañía",
-        "categoria": "Tipo",
-        "total_pagar": "Total",
-        "consumo_kwh": "Consumo",
-    }
-
     if titulo:
         st.markdown(f"#### {titulo}")
 
-    # Una fila por factura
-    for idx, row in df.iterrows():
-        columnas = st.columns(len(cols))
-        col_idx = 0
+    for i, (_, row) in enumerate(df.iterrows()):
+        hash_hist = str(row.get("archivo_hash", "") or "").strip()
+        fecha_txt = fmt_fecha_corta(row.get("fecha_guardado", ""))
 
-        # clave única por fila y por tabla, usando el título como prefijo
-        btn_key = f"hist_{titulo or 'global'}_{row.get('archivo_hash', idx)}"
+        with st.container():
+            cols = st.columns([1.2, 2.2, 1.7, 1.2, 1.2] if mostrar_tipo else [1.2, 2.4, 1.9, 1.3, 1.2])
 
-    with columnas[col_idx]:
-        if st.button(
-            fmt_fecha_corta(row["fecha_guardado"]),
-            key=btn_key,
-            use_container_width=True,
-        ):
-            hash_hist = str(row.get("archivo_hash", "") or "").strip()
-            factura_cargada = None
+            btn_key = f"hist_btn_{titulo or 'global'}_{i}_{hash_hist}"
 
-            if hash_hist:
-                factura_hist = buscar_factura_por_hash(hash_hist)
-                if factura_hist:
-                    factura_cargada = fila_historial_a_factura(factura_hist)
+            with cols[0]:
+                if st.button(fecha_txt, key=btn_key, use_container_width=True):
+                    factura_cargada = None
 
-            if not factura_cargada:
-                factura_cargada = fila_historial_a_factura(row.to_dict())
+                    if hash_hist:
+                        factura_hist = buscar_factura_por_hash(hash_hist)
+                        if factura_hist:
+                            factura_cargada = fila_historial_a_factura(factura_hist)
 
-            st.session_state["factura_actual"] = factura_cargada
-            st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "") if factura_cargada else ""
-            st.session_state["audio_b64"] = preparar_audio(
-                (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
-            )
-            st.session_state["factura_anterior"] = None
-            st.rerun()
-        col_idx += 1
+                    if not factura_cargada:
+                        factura_cargada = fila_historial_a_factura(row.to_dict())
 
-        # Resto de columnas
-        for col in cols[1:]:
-            val = row.get(col, "")
-            if col == "periodo":
-                texto = normalizar_periodo_corto(val)
-            elif col == "compania":
-                texto = normalizar_compania(val)
-            elif col == "categoria":
-                texto = val or "Otro"
-            elif col == "total_pagar":
-                texto = fmt_euro(val)
-            elif col == "consumo_kwh":
-                texto = fmt_num(val, "kWh")
-            else:
-                texto = str(val)
+                    st.session_state["factura_actual"] = factura_cargada
+                    st.session_state["last_file_hash"] = factura_cargada.get("archivo_hash", "") if factura_cargada else ""
+                    st.session_state["audio_b64"] = preparar_audio(
+                        (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
+                    )
+                    st.session_state["factura_anterior"] = None
+                    st.rerun()
 
-            with columnas[col_idx]:
-                st.markdown(f"**{labels[col]}**<br>{texto}", unsafe_allow_html=True)
-            col_idx += 1
+            with cols[1]:
+                st.markdown(
+                    f"**Periodo**<br>{normalizar_periodo_corto(row.get('periodo', ''))}",
+                    unsafe_allow_html=True
+                )
+
+            idx_col = 2
+
+            with cols[idx_col]:
+                st.markdown(
+                    f"**Compañía**<br>{normalizar_compania(row.get('compania', ''))}",
+                    unsafe_allow_html=True
+                )
+
+            idx_col += 1
+
+            if mostrar_tipo:
+                with cols[idx_col]:
+                    st.markdown(
+                        f"**Tipo**<br>{row.get('categoria', 'Otro') or 'Otro'}",
+                        unsafe_allow_html=True
+                    )
+                idx_col += 1
+
+            with cols[idx_col]:
+                st.markdown(
+                    f"**Total**<br>{fmt_euro(row.get('total_pagar'))}",
+                    unsafe_allow_html=True
+                )
+            idx_col += 1
+
+            with cols[idx_col]:
+                st.markdown(
+                    f"**Consumo**<br>{fmt_num(row.get('consumo_kwh'), 'kWh')}",
+                    unsafe_allow_html=True
+                )
+
+            st.markdown("---")
 
 
 def render_historial_completo_y_por_secciones():
