@@ -789,26 +789,26 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
 
             # Columna 0: botón Detalle
             with cols[0]:
-            if st.button("Detalle", key=btn_key, use_container_width=True):
-                factura_cargada = None
+                if st.button("Detalle", key=btn_key, use_container_width=True):
+                    factura_cargada = None
 
-                if hash_hist:
-                    factura_hist = buscar_factura_por_hash(hash_hist)
-                    if factura_hist:
-                        factura_cargada = fila_historial_a_factura(factura_hist)
+                    if hash_hist:
+                        factura_hist = buscar_factura_por_hash(hash_hist)
+                        if factura_hist:
+                            factura_cargada = fila_historial_a_factura(factura_hist)
 
-                if not factura_cargada:
-                    factura_cargada = fila_historial_a_factura(row.to_dict())
+                    if not factura_cargada:
+                        factura_cargada = fila_historial_a_factura(row.to_dict())
 
-                st.session_state["factura_actual"] = factura_cargada
-                st.session_state["last_file_hash"] = (
-                    factura_cargada.get("archivo_hash", "") if factura_cargada else ""
-                )
-                st.session_state["audio_b64"] = preparar_audio(
-                    (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
-                )
-                st.session_state["factura_anterior"] = None
-                st.rerun()
+                    st.session_state["factura_actual"] = factura_cargada
+                    st.session_state["last_file_hash"] = (
+                        factura_cargada.get("archivo_hash", "") if factura_cargada else ""
+                    )
+                    st.session_state["audio_b64"] = preparar_audio(
+                        (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
+                    )
+                    st.session_state["factura_anterior"] = None
+                    st.rerun()
 
             # Columna 1: periodo
             with cols[1]:
