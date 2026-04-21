@@ -208,12 +208,24 @@ def normalizar_periodo_corto(periodo):
         "octubre": 10,
         "noviembre": 11,
         "diciembre": 12,
+        "gen": 1,
+        "feb": 2,
+        "mar": 3,
+        "abr": 4,
+        "mai": 5,
+        "jun": 6,
+        "jul": 7,
+        "ago": 8,
+        "set": 9,
+        "oct": 10,
+        "nov": 11,
+        "des": 12,
     }
 
     def fmt_fecha(dia, mes, anio):
         return f"{int(dia):02d}/{int(mes):02d}/{str(anio)[-2:]}"
 
-    # 1) Caso: 08/01/2026 - 05/02/2026  o 08/01/26 a 05/02/26
+    # 1) Caso: 08/01/2026 - 05/02/2026
     fechas = re.findall(r"(\d{1,2})/(\d{1,2})/(\d{2,4})", t)
     if len(fechas) >= 2:
         d1, m1, y1 = fechas[0]
@@ -278,6 +290,21 @@ def normalizar_periodo_corto(periodo):
             ultimo_dia = calendar.monthrange(int(anio), mes_fin)[1]
             return f"{fmt_fecha(1, mes_ini, anio)} - {fmt_fecha(ultimo_dia, mes_fin, anio)}"
 
+    # 6) Caso catalán abreviado: Gen-Mar/26
+    patron_cat_abrev = r"^([a-z]{3})[-/]([a-z]{3})/(\d{2,4})$"
+    m = re.match(patron_cat_abrev, low)
+    if m:
+        mes_ini_txt, mes_fin_txt, anio = m.groups()
+        if len(anio) == 2:
+            anio = "20" + anio
+
+        mes_ini = meses.get(mes_ini_txt)
+        mes_fin = meses.get(mes_fin_txt)
+
+        if mes_ini and mes_fin:
+            ultimo_dia = calendar.monthrange(int(anio), mes_fin)[1]
+            return f"{fmt_fecha(1, mes_ini, anio)} - {fmt_fecha(ultimo_dia, mes_fin, anio)}"
+
     return t
 
 def fmt_fecha_corta(valor):
@@ -292,6 +319,8 @@ def fmt_fecha_corta(valor):
 
 def extraer_desde_pdf(texto_raw):
     data = {}
+
+    # 1) Intento general con patrones habituales
     patterns = {
         "periodo": r"Periodo de facturaci[oó]n\s+([0-9]{2}[0-9/\- ]+[0-9]{2,4})",
         "total_pagar": r"Total\s+([0-9]+,[0-9]{2})",
@@ -299,12 +328,41 @@ def extraer_desde_pdf(texto_raw):
         "potencia_kw": r"Potencia contratada[\s\S]{0,80}?([0-9]+,[0-9]{2})\s*kW",
         "impuestos": r"IVA\s+([0-9]+,[0-9]{2})",
     }
+
     for key, pat in patterns.items():
         m = re.search(pat, texto_raw, flags=re.IGNORECASE)
         if m:
-            data[key] = m.group(1)
+            data[key] = m.group(1).strip()
+
+    # 2) Compañía conocida
     if re.search(r"visalia|dom[eé]stica gas y electricidad", texto_raw, flags=re.IGNORECASE):
         data["compania"] = "Visalia"
+
+    # 3) PRIORIDAD: periodo a partir de lecturas reales (muy útil en agua)
+    patron_lectura_anterior = r"LECTURA\s+ANTERIOR[\s\S]{0,80}?DATA[:\s]+(\d{1,2}/\d{1,2}/\d{4})"
+    patron_lectura_actual = r"LECTURA\s+ACTUAL[\s\S]{0,80}?DATA[:\s]+(\d{1,2}/\d{1,2}/\d{4})"
+
+    m_ant = re.search(patron_lectura_anterior, texto_raw, flags=re.IGNORECASE)
+    m_act = re.search(patron_lectura_actual, texto_raw, flags=re.IGNORECASE)
+
+    if m_ant and m_act:
+        fecha_ant = m_ant.group(1).strip()
+        fecha_act = m_act.group(1).strip()
+        data["periodo"] = f"{fecha_ant} - {fecha_act}"
+        return data
+
+    # 4) Fallback: si aparecen al menos dos fechas completas cerca de lecturas/dates
+    bloque_lecturas = re.search(
+        r"(LECTURA\s+ANTERIOR[\s\S]{0,200}LECTURA\s+ACTUAL[\s\S]{0,200})",
+        texto_raw,
+        flags=re.IGNORECASE
+    )
+    if bloque_lecturas:
+        fechas = re.findall(r"\d{1,2}/\d{1,2}/\d{4}", bloque_lecturas.group(1))
+        if len(fechas) >= 2:
+            data["periodo"] = f"{fechas[0]} - {fechas[1]}"
+            return data
+
     return data
 
 
