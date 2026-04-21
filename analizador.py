@@ -96,47 +96,37 @@ button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,v
 
 
 /* =========================
-   Botones del histórico: Detalle
-   Más pequeños y en verde
+   Botones "Detalle" del histórico
    ========================= */
 
-div[data-testid="stButton"] button[kind="secondary"] {
-    transition: all 0.16s ease !important;
-}
-
-/* Botones de detalle del historial */
-div[data-testid="stButton"] > button[id*="hist_btn_"] {
-    min-height: 36px !important;
-    height: 36px !important;
-    padding: 0.20rem 0.70rem !important;
-    font-size: 0.88rem !important;
+div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button {
+    min-height: 32px !important;
+    height: 32px !important;
+    font-size: 0.80rem !important;
+    padding: 0.12rem 0.55rem !important;
     font-weight: 700 !important;
     line-height: 1 !important;
     border-radius: 12px !important;
     border: none !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-    text-shadow: none !important;
     background: linear-gradient(180deg, #35b56a 0%, #1f8f50 100%) !important;
+    color: #ffffff !important;
     box-shadow: 0 8px 18px rgba(31, 143, 80, 0.22) !important;
+    transition: all 0.16s ease !important;
 }
 
-/* Hover */
-div[data-testid="stButton"] > button[id*="hist_btn_"]:hover {
+div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:hover {
     background: linear-gradient(180deg, #3ec273 0%, #25834b 100%) !important;
     box-shadow: 0 10px 20px rgba(31, 143, 80, 0.26) !important;
     transform: translateY(-1px);
 }
 
-/* Click */
-div[data-testid="stButton"] > button[id*="hist_btn_"]:active {
-    transform: translateY(0px);
+div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:active {
+    transform: translateY(0) !important;
     filter: brightness(0.98) !important;
 }
 
-/* Focus accesible */
-div[data-testid="stButton"] > button[id*="hist_btn_"]:focus,
-div[data-testid="stButton"] > button[id*="hist_btn_"]:focus-visible {
+div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:focus,
+div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:focus-visible {
     outline: 2px solid rgba(31, 143, 80, 0.28) !important;
     outline-offset: 2px !important;
     box-shadow: 0 0 0 3px rgba(53, 181, 106, 0.18) !important;
@@ -809,7 +799,8 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
 
             # Columna 0: botón Detalle
             with cols[0]:
-                if st.button("Detalle", key=btn_key, use_container_width=True):
+                    st.markdown('<div class="rz-detalle-btn"></div>', unsafe_allow_html=True)
+                    if st.button("Detalle", key=btn_key, use_container_width=True):
                     factura_cargada = None
 
                     if hash_hist:
