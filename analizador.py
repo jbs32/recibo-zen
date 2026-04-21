@@ -95,41 +95,31 @@ button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,v
 @media (max-width:700px) { .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
 
 
-/* =========================
-   Botones "Detalle" del histórico
-   ========================= */
+/* Botones del histórico */
+div[data-testid="stButton"] > button {
+    border-radius: 12px;
+}
 
-div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button {
-    min-height: 32px !important;
-    height: 32px !important;
-    font-size: 0.80rem !important;
-    padding: 0.12rem 0.55rem !important;
+/* Ajuste visual moderado para botones pequeños del histórico */
+div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+    min-height: 36px !important;
+    padding-top: 0.20rem !important;
+    padding-bottom: 0.20rem !important;
+    font-size: 0.86rem !important;
     font-weight: 700 !important;
-    line-height: 1 !important;
     border-radius: 12px !important;
+}
+
+/* Variante verde suave */
+div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="secondary"] {
+    background: #2e9d5b !important;
+    color: white !important;
     border: none !important;
-    background: linear-gradient(180deg, #35b56a 0%, #1f8f50 100%) !important;
-    color: #ffffff !important;
-    box-shadow: 0 8px 18px rgba(31, 143, 80, 0.22) !important;
-    transition: all 0.16s ease !important;
+    box-shadow: 0 6px 14px rgba(46, 157, 91, 0.18) !important;
 }
 
-div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:hover {
-    background: linear-gradient(180deg, #3ec273 0%, #25834b 100%) !important;
-    box-shadow: 0 10px 20px rgba(31, 143, 80, 0.26) !important;
-    transform: translateY(-1px);
-}
-
-div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:active {
-    transform: translateY(0) !important;
-    filter: brightness(0.98) !important;
-}
-
-div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:focus,
-div[data-testid="column"]:has(.rz-detalle-btn) div[data-testid="stButton"] > button:focus-visible {
-    outline: 2px solid rgba(31, 143, 80, 0.28) !important;
-    outline-offset: 2px !important;
-    box-shadow: 0 0 0 3px rgba(53, 181, 106, 0.18) !important;
+div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="secondary"]:hover {
+    background: #25834b !important;
 }
 
 </style>
@@ -799,27 +789,26 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
 
             # Columna 0: botón Detalle
             with cols[0]:
-                    st.markdown('<div class="rz-detalle-btn"></div>', unsafe_allow_html=True)
-                    if st.button("Detalle", key=btn_key, use_container_width=True):
-                        factura_cargada = None
+            if st.button("Detalle", key=btn_key, use_container_width=True):
+                factura_cargada = None
 
-                    if hash_hist:
-                        factura_hist = buscar_factura_por_hash(hash_hist)
-                        if factura_hist:
-                            factura_cargada = fila_historial_a_factura(factura_hist)
+                if hash_hist:
+                    factura_hist = buscar_factura_por_hash(hash_hist)
+                    if factura_hist:
+                        factura_cargada = fila_historial_a_factura(factura_hist)
 
-                    if not factura_cargada:
-                        factura_cargada = fila_historial_a_factura(row.to_dict())
+                if not factura_cargada:
+                    factura_cargada = fila_historial_a_factura(row.to_dict())
 
-                    st.session_state["factura_actual"] = factura_cargada
-                    st.session_state["last_file_hash"] = (
-                        factura_cargada.get("archivo_hash", "") if factura_cargada else ""
-                    )
-                    st.session_state["audio_b64"] = preparar_audio(
-                        (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
-                    )
-                    st.session_state["factura_anterior"] = None
-                    st.rerun()
+                st.session_state["factura_actual"] = factura_cargada
+                st.session_state["last_file_hash"] = (
+                    factura_cargada.get("archivo_hash", "") if factura_cargada else ""
+                )
+                st.session_state["audio_b64"] = preparar_audio(
+                    (factura_cargada or {}).get("guion_audio", "Resumen de la factura.")
+                )
+                st.session_state["factura_anterior"] = None
+                st.rerun()
 
             # Columna 1: periodo
             with cols[1]:
