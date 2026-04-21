@@ -787,13 +787,10 @@ st.markdown(f"<div class='rz-header'><img src='{LOGO_DATA_URI}' alt='ReciboZen'>
 
 st.markdown("<div class='panel'><div class='section-title'>Sube tu factura</div>", unsafe_allow_html=True)
 
-st.write("DEBUG uploaded_file:", getattr(uploaded_file, "name", None))
-st.write("DEBUG current_file_hash:", current_file_hash)
-
-
 uploaded_file = st.file_uploader("Sube tu factura", label_visibility="collapsed", type=["pdf"])
 
 current_file_hash = None
+
 if uploaded_file is not None:
     current_file_hash = obtener_hash_archivo(uploaded_file)
 
@@ -804,6 +801,12 @@ if uploaded_file is not None:
         reset_current_results()
         st.session_state["last_uploaded_name"] = firma_actual
         st.session_state["last_file_hash"] = current_file_hash
+
+    st.write("DEBUG uploaded_file:", getattr(uploaded_file, "name", None))
+    st.write("DEBUG current_file_hash:", current_file_hash)
+else:
+    st.write("DEBUG uploaded_file:", None)
+    st.write("DEBUG current_file_hash:", None)
 
 st.markdown("<div class='hint'>Sube un PDF de tu factura para analizarlo.</div></div>", unsafe_allow_html=True)
 
