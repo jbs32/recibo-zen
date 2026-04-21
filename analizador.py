@@ -128,7 +128,19 @@ def leer_pdf(file):
 
 
 def obtener_hash_archivo(uploaded_file):
-    return hashlib.sha256(uploaded_file.getvalue()).hexdigest()
+    if uploaded_file is None:
+        return None
+
+    try:
+        contenido = uploaded_file.getvalue()
+    except Exception:
+        return None
+
+    nombre = getattr(uploaded_file, "name", "") or ""
+    tamano = len(contenido)
+
+    base = nombre.encode("utf-8") + b"||" + str(tamano).encode("utf-8") + b"||" + contenido
+    return hashlib.sha256(base).hexdigest()
 
 
 def preparar_audio(texto):
@@ -774,15 +786,25 @@ if query_params.get("accion") == "cargar_historial":
 st.markdown(f"<div class='rz-header'><img src='{LOGO_DATA_URI}' alt='ReciboZen'></div>", unsafe_allow_html=True)
 
 st.markdown("<div class='panel'><div class='section-title'>Sube tu factura</div>", unsafe_allow_html=True)
+
+st.write("DEBUG uploaded_file:", getattr(uploaded_file, "name", None))
+st.write("DEBUG current_file_hash:", current_file_hash)
+
+
 uploaded_file = st.file_uploader("Sube tu factura", label_visibility="collapsed", type=["pdf"])
+
 current_file_hash = None
 if uploaded_file is not None:
     current_file_hash = obtener_hash_archivo(uploaded_file)
-    if st.session_state.get("last_file_hash") != current_file_hash:
-        # Estamos analizando un archivo nuevo: limpiamos los resultados anteriores
+
+    nombre_actual = getattr(uploaded_file, "name", "") or ""
+    firma_actual = f"{nombre_actual}__{current_file_hash}"
+
+    if st.session_state.get("last_uploaded_name") != firma_actual:
         reset_current_results()
-        st.session_state["last_uploaded_name"] = uploaded_file.name
+        st.session_state["last_uploaded_name"] = firma_actual
         st.session_state["last_file_hash"] = current_file_hash
+
 st.markdown("<div class='hint'>Sube un PDF de tu factura para analizarlo.</div></div>", unsafe_allow_html=True)
 
 analizar = st.button("Analizar factura", type="primary", use_container_width=True)
