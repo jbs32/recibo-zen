@@ -801,7 +801,7 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
             with cols[0]:
                     st.markdown('<div class="rz-detalle-btn"></div>', unsafe_allow_html=True)
                     if st.button("Detalle", key=btn_key, use_container_width=True):
-                    factura_cargada = None
+                        factura_cargada = None
 
                     if hash_hist:
                         factura_hist = buscar_factura_por_hash(hash_hist)
