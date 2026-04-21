@@ -494,13 +494,12 @@ def guardar_historial(factura, archivo_hash, texto_raw=None):
     compania_norm = normalizar_compania(factura.get("compania", "No detectada"))
     categoria = detectar_categoria_suministro(texto_raw or "", compania_norm)
 
-
     fila = {
         "archivo_hash": archivo_hash,
         "fecha_guardado": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "periodo": factura.get("periodo", "No detectado"),
         "compania": compania_norm,
-        "categoria": categoria,  # NUEVO
+        "categoria": categoria,
         "total_pagar": limpiar_numero(factura.get("total_pagar")),
         "consumo_kwh": limpiar_numero(factura.get("consumo_kwh")),
         "potencia_kw": limpiar_numero(factura.get("potencia_kw")),
@@ -515,7 +514,7 @@ def guardar_historial(factura, archivo_hash, texto_raw=None):
 
     df_prev = asegurar_columnas_historial(cargar_historial())
     df_new = pd.concat([df_prev, pd.DataFrame([fila])], ignore_index=True)
-    df_new = deduplicar_historial(df_new)
+
     df_new.to_csv(HISTORIAL_CSV, index=False)
     return df_new
 
@@ -732,20 +731,22 @@ def render_history_table(df, titulo=None, mostrar_tipo=True):
 def render_historial_completo_y_por_secciones():
     """
     Muestra:
-    - Una tabla única con todas las facturas (incluye columna 'Tipo').
+    - Una tabla única con todas las facturas (incluye columna Tipo).
     - Luego tablas separadas para Luz, Agua y Teléfono.
     """
-    hist = deduplicar_historial(cargar_historial())
+    hist = asegurar_columnas_historial(cargar_historial())
+
     if hist.empty:
         st.markdown("No hay facturas guardadas todavía.")
         return
 
     hist_sorted = hist.sort_values("fecha_guardado", ascending=False).reset_index(drop=True)
 
-    # Vista global
+    st.write("DEBUG total filas historial:", len(hist_sorted))
+    st.write("DEBUG hashes historial:", hist_sorted["archivo_hash"].astype(str).tolist())
+
     render_history_table(hist_sorted, titulo="Histórico completo", mostrar_tipo=True)
 
-    # Vistas por secciones
     secciones = [
         ("Luz", "Facturas de Luz"),
         ("Agua", "Facturas de Agua"),
