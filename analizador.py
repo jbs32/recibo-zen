@@ -93,6 +93,55 @@ button[data-testid="baseButton-btn_parar"] { background:linear-gradient(180deg,v
 .history-danger-wrap { margin-top: 1rem; }
 .history-danger-btn { display:block; width:100%; text-align:center; padding: .95rem 1rem; border-radius:18px; font-size:1rem; font-weight:800; color:#ffffff !important; text-decoration:none !important; background:linear-gradient(180deg,var(--danger-2) 0%,var(--danger) 100%); box-shadow:0 12px 28px rgba(183,28,28,.28); }
 @media (max-width:700px) { .data-grid { grid-template-columns:1fr; } .audio-actions { grid-template-columns:1fr; } }
+
+
+/* =========================
+   Botones del histórico: Detalle
+   Más pequeños y en verde
+   ========================= */
+
+div[data-testid="stButton"] button[kind="secondary"] {
+    transition: all 0.16s ease !important;
+}
+
+/* Botones de detalle del historial */
+div[data-testid="stButton"] > button[id*="hist_btn_"] {
+    min-height: 36px !important;
+    height: 36px !important;
+    padding: 0.20rem 0.70rem !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    border-radius: 12px !important;
+    border: none !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    text-shadow: none !important;
+    background: linear-gradient(180deg, #35b56a 0%, #1f8f50 100%) !important;
+    box-shadow: 0 8px 18px rgba(31, 143, 80, 0.22) !important;
+}
+
+/* Hover */
+div[data-testid="stButton"] > button[id*="hist_btn_"]:hover {
+    background: linear-gradient(180deg, #3ec273 0%, #25834b 100%) !important;
+    box-shadow: 0 10px 20px rgba(31, 143, 80, 0.26) !important;
+    transform: translateY(-1px);
+}
+
+/* Click */
+div[data-testid="stButton"] > button[id*="hist_btn_"]:active {
+    transform: translateY(0px);
+    filter: brightness(0.98) !important;
+}
+
+/* Focus accesible */
+div[data-testid="stButton"] > button[id*="hist_btn_"]:focus,
+div[data-testid="stButton"] > button[id*="hist_btn_"]:focus-visible {
+    outline: 2px solid rgba(31, 143, 80, 0.28) !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 3px rgba(53, 181, 106, 0.18) !important;
+}
+
 </style>
 """,
     unsafe_allow_html=True,
